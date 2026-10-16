@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>席替えアンケート（生徒用）</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>席替えアンケート</h1>
+
+  <section class="card">
+    <h2>1. あなたの情報</h2>
+    <div class="form-row">
+      <label>出席番号
+        <input type="number" id="number" min="1" max="99" required>
+      </label>
+      <label>名前
+        <input type="text" id="name" placeholder="例：山田 太郎" required>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. 希望の座席を選ぶ</h2>
+    <p class="muted">座りたい席を、第1希望 → 第2希望 → 第3希望 の順にクリックしてください。選んだ席をもう一度クリックすると取り消せます。</p>
+    <div class="front">教卓（前）</div>
+    <div class="grid-wrap">
+      <div class="seat-grid" id="grid"></div>
+    </div>
+    <ul class="choices" id="choices"></ul>
+    <button type="button" id="reset">選び直す</button>
+  </section>
+
+  <section class="card">
+    <h2>3. 提出する</h2>
+    <p class="muted">「提出ファイルを保存」を押すと JSON ファイルがダウンロードされます。そのファイルを先生の指示どおりに提出してください。</p>
+    <button type="button" class="primary" id="submit">提出ファイルを保存</button>
+    <div class="message" id="message"></div>
+  </section>
+
+  <details class="card">
+    <summary>座席の配置について（先生向け）</summary>
+    <p class="muted">座席の配置は、教員用ページの「座席の配置」で作った生徒用リンクから開くと反映されます。リンクなしで開いたときは 6列 × 6人 です。</p>
+  </details>
+</main>
+
+<script src="common.js"></script>
+<script>
+(() => {
+  const layout = SeatApp.layoutFromUrl() || SeatApp.makeLayout();
+  const { rows, cols } = layout;
+  const grid = document.getElementById("grid");
+  const choicesEl = document.getElementById("choices");
+  const messageEl = document.getElementById("message");
+  // choices[0] = 第1希望 … 各要素は {row, col} または null
+  const choices = [null, null, null];
+
+  function rankOf(row, col) {
+    return choices.findIndex(c => c && c.row === row && c.col === col);
+  }
+
+  function showMessage(text, type) {
+    messageEl.textContent = text;
+    messageEl.className = "message " + (type || "");
+  }
+
+  function render() {
+    grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    grid.innerHTML = "";
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
+        if (!SeatApp.isSeat(layout, r, c)) {
+          const gap = document.createElement("div");
+          gap.className = "seat aisle";
+          grid.appendChild(gap);
+          continue;
+        }
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "seat";
+        const rank = rankOf(r, c);
+        const pos = `<span class="pos">${SeatApp.seatShortLabel(layout, r, c)}</span>`;
+        if (rank >= 0) {
+          btn.classList.add("rank" + (rank + 1));
+          btn.innerHTML = `<span class="rank">${SeatApp.RANK_LABELS[rank]}</span>${pos}`;
+        } else {
+          btn.innerHTML = pos;
+        }
+        btn.title = SeatApp.seatLabel(layout, r, c);
+        btn.addEventListener("click", () => toggle(r, c));
+        grid.appendChild(btn);
+      }
+    }
+
+    choicesEl.innerHTML = "";
+    choices.forEach((c, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="badge r${i + 1}">${SeatApp.RANK_LABELS[i]}</span>` +
+        (c ? SeatApp.seatLabel(layout, c.row, c.col) : '<span class="muted">未選択</span>');
+      choicesEl.appendChild(li);
+    });
+  }
+
+  function toggle(row, col) {
+    const rank = rankOf(row, col);
+    if (rank >= 0) {
+      choices[rank] = null;
+    } else {
+      const empty = choices.indexOf(null);
+      if (empty < 0) {
+        showMessage("第3希望まで選択済みです。変えたい席をクリックして取り消してから選んでください。", "error");
+        return;
+      }
+      choices[empty] = { row, col };
+    }
+    showMessage("");
+    render();
+  }
+
+  document.getElementById("reset").addEventListener("click", () => {
+    choices.fill(null);
+    showMessage("");
+    render();
+  });
+
+  document.getElementById("submit").addEventListener("click", () => {
+    const number = parseInt(document.getElementById("number").value, 10);
+    const name = document.getElementById("name").value.trim();
+    if (!Number.isFinite(number) || number < 1) {
+      showMessage("出席番号を入力してください。", "error");
+      return;
+    }
+    if (!name) {
+      showMessage("名前を入力してください。", "error");
+      return;
+    }
+    if (choices.some(c => c === null)) {
+      showMessage("第1希望から第3希望まで、すべて選んでください。", "error");
+      return;
+    }
+
+    const data = {
+      app: SeatApp.APP_ID,
+      version: SeatApp.VERSION,
+      number,
+      name,
+      rows,
+      cols,
+      off: [...layout.off],
+      choices: choices.map((c, i) => ({ rank: i + 1, row: c.row, col: c.col })),
+      submittedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    // 日本語のファイル名は環境によって無視されるため、出席番号だけにする
+    a.download = `seat_${String(number).padStart(2, "0")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showMessage(`「${a.download}」を保存しました。このファイルを提出してください。`, "ok");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
