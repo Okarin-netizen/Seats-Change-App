@@ -11,19 +11,40 @@
   <h1>席替えアンケート 集計（教員用）</h1>
 
   <section class="card">
-    <h2>1. 提出ファイルを読み込む</h2>
+    <h2>1. 座席の配置を決める</h2>
+    <p class="muted">列数と人数を決めたら、通路や空きにしたいマスをクリックしてください（もう一度クリックで席に戻ります）。配置はこのブラウザに保存されます。</p>
+    <div class="form-row">
+      <label>前後の列数
+        <input type="number" id="rows" min="1" max="12">
+      </label>
+      <label>横のマス数（通路を含む）
+        <input type="number" id="cols" min="1" max="12">
+      </label>
+      <button type="button" id="resetLayout">通路をすべて消す</button>
+    </div>
+    <div class="front" style="margin-top:12px">教卓（前）</div>
+    <div class="grid-wrap">
+      <div class="seat-grid editor" id="editor"></div>
+    </div>
+    <p class="muted" id="seatCount"></p>
+    <h3 class="sub">生徒用リンク</h3>
+    <p class="muted">このリンクを生徒に配ると、この配置の座席表で希望を選べます。</p>
+    <div class="form-row">
+      <input type="text" id="studentLink" readonly class="link-box">
+      <button type="button" id="copyLink">コピー</button>
+      <a id="openStudent" href="student.html" target="_blank">生徒用を開く</a>
+    </div>
+    <div class="message" id="copyMessage"></div>
+  </section>
+
+  <section class="card">
+    <h2>2. 提出ファイルを読み込む</h2>
     <div class="dropzone" id="dropzone">
       <p>生徒から集めた JSON ファイルをここにドラッグ＆ドロップ<br>（複数まとめて可）</p>
       <input type="file" id="fileInput" accept=".json,application/json" multiple>
     </div>
     <div class="message" id="message"></div>
     <div class="form-row" style="margin-top:12px">
-      <label>座席表 前後の列数
-        <input type="number" id="rows" min="1" max="12">
-      </label>
-      <label>横の人数
-        <input type="number" id="cols" min="1" max="12">
-      </label>
       <button type="button" id="csv">CSVで保存</button>
       <button type="button" id="clear">読み込みをすべて消す</button>
     </div>
@@ -31,7 +52,7 @@
   </section>
 
   <section class="card">
-    <h2>2. 希望一覧 <span class="muted" id="count"></span></h2>
+    <h2>3. 希望一覧 <span class="muted" id="count"></span></h2>
     <div class="table-wrap">
       <table>
         <thead>
@@ -43,7 +64,7 @@
   </section>
 
   <section class="card">
-    <h2>3. 座席ごとの希望者</h2>
+    <h2>4. 座席ごとの希望者</h2>
     <p class="legend">
       <span class="badge r1">第1希望</span>
       <span class="badge r2">第2希望</span>
@@ -60,11 +81,76 @@
 <script src="common.js"></script>
 <script>
 (() => {
-  const initial = SeatApp.sizeFromUrl();
+  const STORAGE_KEY = "seats-change-app.layout";
   const rowsInput = document.getElementById("rows");
   const colsInput = document.getElementById("cols");
-  rowsInput.value = initial.rows;
-  colsInput.value = initial.cols;
+
+  // 配置は URL → このブラウザに保存したもの → 既定 6×6 の順に使う
+  function loadSavedLayout() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (saved) return SeatApp.makeLayout(saved.rows, saved.cols, saved.off);
+    } catch (e) { /* 保存できない環境では既定値を使う */ }
+    return null;
+  }
+  let layout = SeatApp.layoutFromUrl() || loadSavedLayout() || SeatApp.makeLayout();
+  rowsInput.value = layout.rows;
+  colsInput.value = layout.cols;
+
+  function saveLayout() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows: layout.rows, cols: layout.cols, off: [...layout.off] }));
+    } catch (e) { /* 保存できなくても画面上の配置は使える */ }
+    history.replaceState(null, "", "?" + SeatApp.layoutToQuery(layout));
+  }
+
+  function studentUrl() {
+    return new URL("student.html?" + SeatApp.layoutToQuery(layout), location.href).href;
+  }
+
+  function renderEditor() {
+    const editor = document.getElementById("editor");
+    editor.style.gridTemplateColumns = `repeat(${layout.cols}, auto)`;
+    editor.innerHTML = "";
+    let count = 0;
+    for (let r = 1; r <= layout.rows; r++) {
+      for (let c = 1; c <= layout.cols; c++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        if (SeatApp.isSeat(layout, r, c)) {
+          count++;
+          btn.className = "seat";
+          btn.innerHTML = `<span class="pos">${SeatApp.seatShortLabel(layout, r, c)}</span>`;
+          btn.title = "クリックで通路・空きにする";
+        } else {
+          btn.className = "seat aisle editable";
+          btn.textContent = "通路";
+          btn.title = "クリックで席に戻す";
+        }
+        btn.addEventListener("click", () => {
+          const k = SeatApp.key(r, c);
+          if (layout.off.has(k)) layout.off.delete(k); else layout.off.add(k);
+          layoutChanged();
+        });
+        editor.appendChild(btn);
+      }
+    }
+    document.getElementById("seatCount").textContent = `席の数：${count}席`;
+    const url = studentUrl();
+    document.getElementById("studentLink").value = url;
+    document.getElementById("openStudent").href = url;
+  }
+
+  function layoutChanged() {
+    saveLayout();
+    renderEditor();
+    render();
+  }
+
+  function onSizeInput() {
+    layout = SeatApp.makeLayout(rowsInput.value, colsInput.value, layout.off);
+    layoutChanged();
+  }
 
   const messageEl = document.getElementById("message");
   // 出席番号 → 提出データ
@@ -99,6 +185,7 @@
     // FileList は input をリセットすると空になるので先に配列へ写す
     const files = [...fileList];
     const errors = [];
+    const warnings = [];
     let added = 0;
     for (const file of files) {
       try {
@@ -111,19 +198,24 @@
           submissions.set(data.number, data);
         }
         added++;
-        // 生徒側の座席表が大きければ合わせて広げる
-        const maxRow = Math.max(data.rows || 0, ...data.choices.map(c => c.row));
-        const maxCol = Math.max(data.cols || 0, ...data.choices.map(c => c.col));
-        if (maxRow > +rowsInput.value) rowsInput.value = Math.min(maxRow, SeatApp.MAX_SIZE);
-        if (maxCol > +colsInput.value) colsInput.value = Math.min(maxCol, SeatApp.MAX_SIZE);
+        if (data.choices.some(c => !SeatApp.isSeat(layout, c.row, c.col))) {
+          warnings.push(`${file.name}：いまの配置にない席を選んでいます`);
+        }
       } catch (e) {
         errors.push(`${file.name}：JSONとして読めませんでした`);
       }
     }
-    messageEl.className = "message " + (errors.length ? "error" : "ok");
+    messageEl.className = "message " + (errors.length || warnings.length ? "error" : "ok");
     messageEl.innerHTML = `${added}件読み込みました。` +
-      (errors.length ? "<br>読み込めなかったファイル：<br>" + errors.map(escapeHtml).join("<br>") : "");
+      (errors.length ? "<br>読み込めなかったファイル：<br>" + errors.map(escapeHtml).join("<br>") : "") +
+      (warnings.length ? "<br>注意：<br>" + warnings.map(escapeHtml).join("<br>") : "");
     render();
+  }
+
+  function seatText(c) {
+    return SeatApp.isSeat(layout, c.row, c.col)
+      ? SeatApp.seatLabel(layout, c.row, c.col)
+      : `配置にない席（${c.row}-${c.col}）`;
   }
 
   function sorted() {
@@ -140,18 +232,23 @@
     for (const s of list) {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td>${s.number}</td><td>${escapeHtml(s.name)}</td>` +
-        s.choices.map(c => `<td>${SeatApp.seatLabel(c.row, c.col)}</td>`).join("") +
+        s.choices.map(c => `<td>${seatText(c)}</td>`).join("") +
         `<td>${formatDate(s.submittedAt)}</td>`;
       tbody.appendChild(tr);
     }
 
-    const rows = SeatApp.clampSize(rowsInput.value, SeatApp.DEFAULT_ROWS);
-    const cols = SeatApp.clampSize(colsInput.value, SeatApp.DEFAULT_COLS);
+    const { rows, cols } = layout;
     const grid = document.getElementById("grid");
     grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
     grid.innerHTML = "";
     for (let r = 1; r <= rows; r++) {
       for (let c = 1; c <= cols; c++) {
+        if (!SeatApp.isSeat(layout, r, c)) {
+          const gap = document.createElement("div");
+          gap.className = "seat aisle";
+          grid.appendChild(gap);
+          continue;
+        }
         const wanted = [];
         for (const s of list) {
           for (const ch of s.choices) {
@@ -162,8 +259,8 @@
         const div = document.createElement("div");
         div.className = "seat";
         if (wanted.filter(w => w.rank === 1).length >= 2) div.classList.add("hot");
-        div.title = SeatApp.seatLabel(r, c);
-        div.innerHTML = `<div class="pos">${SeatApp.seatShortLabel(r, c)}</div><div class="names">` +
+        div.title = SeatApp.seatLabel(layout, r, c);
+        div.innerHTML = `<div class="pos">${SeatApp.seatShortLabel(layout, r, c)}</div><div class="names">` +
           wanted.map(w => `<span class="n${w.rank}">${w.rank}: ${w.s.number} ${escapeHtml(w.s.name)}</span>`).join("") +
           "</div>";
         grid.appendChild(div);
@@ -176,11 +273,11 @@
     const quote = v => `"${String(v).replace(/"/g, '""')}"`;
     const lines = [header.map(quote).join(",")];
     for (const s of sorted()) {
-      lines.push([s.number, s.name, ...s.choices.map(c => SeatApp.seatLabel(c.row, c.col)), s.submittedAt || ""]
+      lines.push([s.number, s.name, ...s.choices.map(seatText), s.submittedAt || ""]
         .map(quote).join(","));
     }
     // Excel で文字化けしないよう BOM を付ける
-    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv" });
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "seat_survey.csv";
@@ -202,8 +299,24 @@
     loadFiles(e.target.files);
     e.target.value = "";
   });
-  rowsInput.addEventListener("input", render);
-  colsInput.addEventListener("input", render);
+  rowsInput.addEventListener("change", onSizeInput);
+  colsInput.addEventListener("change", onSizeInput);
+  document.getElementById("resetLayout").addEventListener("click", () => {
+    layout.off.clear();
+    layoutChanged();
+  });
+  document.getElementById("copyLink").addEventListener("click", async () => {
+    const box = document.getElementById("studentLink");
+    const msg = document.getElementById("copyMessage");
+    try {
+      await navigator.clipboard.writeText(box.value);
+    } catch (e) {
+      box.select();
+      document.execCommand("copy");
+    }
+    msg.className = "message ok";
+    msg.textContent = "生徒用リンクをコピーしました。";
+  });
   document.getElementById("csv").addEventListener("click", downloadCsv);
   document.getElementById("clear").addEventListener("click", () => {
     if (!submissions.size || confirm("読み込んだ提出データをすべて消しますか？")) {
@@ -213,6 +326,8 @@
     }
   });
 
+  saveLayout();
+  renderEditor();
   render();
 })();
 </script>

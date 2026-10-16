@@ -197,3 +197,20 @@ th { background: #f3f4f6; }
   color: var(--accent);
   font-weight: bold;
 }
+
+/* 通路・空きのマス */
+.seat.aisle {
+  border: 2px dashed transparent;
+  background: transparent;
+}
+/* 集計・生徒用では通路を細くして表を横に広げすぎない */
+.seat.aisle:not(.editable),
+.seat-grid.teacher .seat.aisle { width: 28px; min-width: 0; }
+button.seat.aisle.editable {
+  border-color: var(--border);
+  color: var(--muted);
+  background: #f3f4f6;
+}
+
+h3.sub { font-size: 1rem; margin: 16px 0 4px; }
+.link-box { flex: 1 1 320px; font-size: 0.85rem; }

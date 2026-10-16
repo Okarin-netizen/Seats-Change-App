@@ -41,15 +41,16 @@
   </section>
 
   <details class="card">
-    <summary>座席表の大きさ（先生向け）</summary>
-    <p class="muted">座席表は既定で 6列 × 6人 です。URL の末尾に <code>?rows=5&amp;cols=7</code> のように付けると大きさを変えられます（rows = 前後の列数、cols = 横の人数）。</p>
+    <summary>座席の配置について（先生向け）</summary>
+    <p class="muted">座席の配置は、教員用ページの「座席の配置」で作った生徒用リンクから開くと反映されます。リンクなしで開いたときは 6列 × 6人 です。</p>
   </details>
 </main>
 
 <script src="common.js"></script>
 <script>
 (() => {
-  const { rows, cols } = SeatApp.sizeFromUrl();
+  const layout = SeatApp.layoutFromUrl() || SeatApp.makeLayout();
+  const { rows, cols } = layout;
   const grid = document.getElementById("grid");
   const choicesEl = document.getElementById("choices");
   const messageEl = document.getElementById("message");
@@ -70,18 +71,24 @@
     grid.innerHTML = "";
     for (let r = 1; r <= rows; r++) {
       for (let c = 1; c <= cols; c++) {
+        if (!SeatApp.isSeat(layout, r, c)) {
+          const gap = document.createElement("div");
+          gap.className = "seat aisle";
+          grid.appendChild(gap);
+          continue;
+        }
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "seat";
         const rank = rankOf(r, c);
-        const pos = `<span class="pos">${SeatApp.seatShortLabel(r, c)}</span>`;
+        const pos = `<span class="pos">${SeatApp.seatShortLabel(layout, r, c)}</span>`;
         if (rank >= 0) {
           btn.classList.add("rank" + (rank + 1));
           btn.innerHTML = `<span class="rank">${SeatApp.RANK_LABELS[rank]}</span>${pos}`;
         } else {
           btn.innerHTML = pos;
         }
-        btn.title = SeatApp.seatLabel(r, c);
+        btn.title = SeatApp.seatLabel(layout, r, c);
         btn.addEventListener("click", () => toggle(r, c));
         grid.appendChild(btn);
       }
@@ -91,7 +98,7 @@
     choices.forEach((c, i) => {
       const li = document.createElement("li");
       li.innerHTML = `<span class="badge r${i + 1}">${SeatApp.RANK_LABELS[i]}</span>` +
-        (c ? SeatApp.seatLabel(c.row, c.col) : '<span class="muted">未選択</span>');
+        (c ? SeatApp.seatLabel(layout, c.row, c.col) : '<span class="muted">未選択</span>');
       choicesEl.appendChild(li);
     });
   }
@@ -141,6 +148,7 @@
       name,
       rows,
       cols,
+      off: [...layout.off],
       choices: choices.map((c, i) => ({ rank: i + 1, row: c.row, col: c.col })),
       submittedAt: new Date().toISOString(),
     };
