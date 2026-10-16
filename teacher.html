@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>席替えアンケート（教員用）</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>席替えアンケート 集計（教員用）</h1>
+
+  <section class="card">
+    <h2>1. 提出ファイルを読み込む</h2>
+    <div class="dropzone" id="dropzone">
+      <p>生徒から集めた JSON ファイルをここにドラッグ＆ドロップ<br>（複数まとめて可）</p>
+      <input type="file" id="fileInput" accept=".json,application/json" multiple>
+    </div>
+    <div class="message" id="message"></div>
+    <div class="form-row" style="margin-top:12px">
+      <label>座席表 前後の列数
+        <input type="number" id="rows" min="1" max="12">
+      </label>
+      <label>横の人数
+        <input type="number" id="cols" min="1" max="12">
+      </label>
+      <button type="button" id="csv">CSVで保存</button>
+      <button type="button" id="clear">読み込みをすべて消す</button>
+    </div>
+    <p class="muted">同じ出席番号のファイルが複数あるときは、提出日時が新しいほうを使います。</p>
+  </section>
+
+  <section class="card">
+    <h2>2. 希望一覧 <span class="muted" id="count"></span></h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>番号</th><th>名前</th><th>第1希望</th><th>第2希望</th><th>第3希望</th><th>提出日時</th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. 座席ごとの希望者</h2>
+    <p class="legend">
+      <span class="badge r1">第1希望</span>
+      <span class="badge r2">第2希望</span>
+      <span class="badge r3">第3希望</span>
+      第1希望が2人以上重なっている席は赤枠で表示します。
+    </p>
+    <div class="front">教卓（前）</div>
+    <div class="grid-wrap">
+      <div class="seat-grid teacher" id="grid"></div>
+    </div>
+  </section>
+</main>
+
+<script src="common.js"></script>
+<script>
+(() => {
+  const initial = SeatApp.sizeFromUrl();
+  const rowsInput = document.getElementById("rows");
+  const colsInput = document.getElementById("cols");
+  rowsInput.value = initial.rows;
+  colsInput.value = initial.cols;
+
+  const messageEl = document.getElementById("message");
+  // 出席番号 → 提出データ
+  const submissions = new Map();
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[ch]));
+  }
+
+  function formatDate(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function validate(data) {
+    if (!data || data.app !== SeatApp.APP_ID) return "このアプリの提出ファイルではありません";
+    if (!Number.isInteger(data.number) || data.number < 1) return "出席番号がありません";
+    if (typeof data.name !== "string" || !data.name.trim()) return "名前がありません";
+    if (!Array.isArray(data.choices) || data.choices.length !== 3) return "希望の座席が3つありません";
+    for (const c of data.choices) {
+      if (![1, 2, 3].includes(c.rank) || !Number.isInteger(c.row) || !Number.isInteger(c.col) || c.row < 1 || c.col < 1) {
+        return "希望の座席の形式が正しくありません";
+      }
+    }
+    return null;
+  }
+
+  async function loadFiles(fileList) {
+    // FileList は input をリセットすると空になるので先に配列へ写す
+    const files = [...fileList];
+    const errors = [];
+    let added = 0;
+    for (const file of files) {
+      try {
+        const data = JSON.parse(await file.text());
+        const err = validate(data);
+        if (err) { errors.push(`${file.name}：${err}`); continue; }
+        data.choices.sort((a, b) => a.rank - b.rank);
+        const prev = submissions.get(data.number);
+        if (!prev || String(data.submittedAt || "") >= String(prev.submittedAt || "")) {
+          submissions.set(data.number, data);
+        }
+        added++;
+        // 生徒側の座席表が大きければ合わせて広げる
+        const maxRow = Math.max(data.rows || 0, ...data.choices.map(c => c.row));
+        const maxCol = Math.max(data.cols || 0, ...data.choices.map(c => c.col));
+        if (maxRow > +rowsInput.value) rowsInput.value = Math.min(maxRow, SeatApp.MAX_SIZE);
+        if (maxCol > +colsInput.value) colsInput.value = Math.min(maxCol, SeatApp.MAX_SIZE);
+      } catch (e) {
+        errors.push(`${file.name}：JSONとして読めませんでした`);
+      }
+    }
+    messageEl.className = "message " + (errors.length ? "error" : "ok");
+    messageEl.innerHTML = `${added}件読み込みました。` +
+      (errors.length ? "<br>読み込めなかったファイル：<br>" + errors.map(escapeHtml).join("<br>") : "");
+    render();
+  }
+
+  function sorted() {
+    return [...submissions.values()].sort((a, b) => a.number - b.number);
+  }
+
+  function render() {
+    const list = sorted();
+    document.getElementById("count").textContent = `（${list.length}人）`;
+
+    const tbody = document.getElementById("tbody");
+    tbody.innerHTML = list.length ? "" :
+      '<tr><td colspan="6" class="muted">まだ読み込まれていません</td></tr>';
+    for (const s of list) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${s.number}</td><td>${escapeHtml(s.name)}</td>` +
+        s.choices.map(c => `<td>${SeatApp.seatLabel(c.row, c.col)}</td>`).join("") +
+        `<td>${formatDate(s.submittedAt)}</td>`;
+      tbody.appendChild(tr);
+    }
+
+    const rows = SeatApp.clampSize(rowsInput.value, SeatApp.DEFAULT_ROWS);
+    const cols = SeatApp.clampSize(colsInput.value, SeatApp.DEFAULT_COLS);
+    const grid = document.getElementById("grid");
+    grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    grid.innerHTML = "";
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
+        const wanted = [];
+        for (const s of list) {
+          for (const ch of s.choices) {
+            if (ch.row === r && ch.col === c) wanted.push({ rank: ch.rank, s });
+          }
+        }
+        wanted.sort((a, b) => a.rank - b.rank || a.s.number - b.s.number);
+        const div = document.createElement("div");
+        div.className = "seat";
+        if (wanted.filter(w => w.rank === 1).length >= 2) div.classList.add("hot");
+        div.title = SeatApp.seatLabel(r, c);
+        div.innerHTML = `<div class="pos">${SeatApp.seatShortLabel(r, c)}</div><div class="names">` +
+          wanted.map(w => `<span class="n${w.rank}">${w.rank}: ${w.s.number} ${escapeHtml(w.s.name)}</span>`).join("") +
+          "</div>";
+        grid.appendChild(div);
+      }
+    }
+  }
+
+  function downloadCsv() {
+    const header = ["出席番号", "名前", "第1希望", "第2希望", "第3希望", "提出日時"];
+    const quote = v => `"${String(v).replace(/"/g, '""')}"`;
+    const lines = [header.map(quote).join(",")];
+    for (const s of sorted()) {
+      lines.push([s.number, s.name, ...s.choices.map(c => SeatApp.seatLabel(c.row, c.col)), s.submittedAt || ""]
+        .map(quote).join(","));
+    }
+    // Excel で文字化けしないよう BOM を付ける
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "seat_survey.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  const dropzone = document.getElementById("dropzone");
+  dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("over"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("over"));
+  dropzone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropzone.classList.remove("over");
+    loadFiles(e.dataTransfer.files);
+  });
+  document.getElementById("fileInput").addEventListener("change", e => {
+    loadFiles(e.target.files);
+    e.target.value = "";
+  });
+  rowsInput.addEventListener("input", render);
+  colsInput.addEventListener("input", render);
+  document.getElementById("csv").addEventListener("click", downloadCsv);
+  document.getElementById("clear").addEventListener("click", () => {
+    if (!submissions.size || confirm("読み込んだ提出データをすべて消しますか？")) {
+      submissions.clear();
+      messageEl.textContent = "";
+      render();
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
