@@ -49,14 +49,37 @@ const SeatApp = {
     }).filter(s => Number.isInteger(s.row) && Number.isInteger(s.col));
   },
 
-  // 生徒用リンクの ?round=2&taken=1-3,2-4 （何回目の調査か・決定済みの席）
+  // 生徒用リンクの ?round=2&taken=1-3,2-4&api=... （何回目の調査か・決定済みの席・提出先）
   surveyFromUrl() {
     const params = new URLSearchParams(location.search);
     const round = parseInt(params.get("round"), 10);
+    const api = params.get("api") || "";
     return {
       round: Number.isInteger(round) && round >= 1 ? round : 1,
       taken: new Set(this.parseSeatList(params.get("taken")).map(s => this.key(s.row, s.col))),
+      api: this.isApiUrl(api) ? api : "",
     };
+  },
+
+  // 提出先は Google Apps Script のウェブアプリだけを受け付ける
+  isApiUrl(url) {
+    return /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(String(url).trim());
+  },
+
+  // Google Apps Script へ送る。text/plain にすると事前確認（CORS プリフライト）が起きない
+  async postToApi(api, data) {
+    const res = await fetch(api, { method: "POST", body: JSON.stringify(data) });
+    const body = await res.json();
+    if (!body.ok) throw new Error(body.error || "送信に失敗しました");
+    return body;
+  },
+
+  async listFromApi(api, key, round) {
+    const url = `${api}?action=list&round=${round}&key=${encodeURIComponent(key)}`;
+    const res = await fetch(url);
+    const body = await res.json();
+    if (!body.ok) throw new Error(body.error || "読み込みに失敗しました");
+    return body.submissions;
   },
 
   layoutToQuery(layout) {

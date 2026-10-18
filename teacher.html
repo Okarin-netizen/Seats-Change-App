@@ -30,6 +30,21 @@
     <p class="muted" id="seatCount"></p>
   </section>
 
+  <details class="card" id="apiCard">
+    <summary><strong>Google スプレッドシートで提出を受け取る（設定）</strong> <span class="muted" id="apiState"></span></summary>
+    <p class="muted">設定すると、生徒は「提出する」を押すだけで提出でき、ここでは「スプレッドシートから読み込む」で集計できます。設定しないときは、これまでどおりファイルでやり取りします。準備の手順は README の「Google スプレッドシートで提出を受け取る」を見てください。</p>
+    <div class="form-row">
+      <label style="flex:1 1 320px">ウェブアプリの URL
+        <input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec">
+      </label>
+      <label>合言葉（TEACHER_KEY）
+        <input type="text" id="apiKey" autocomplete="off">
+      </label>
+      <button type="button" id="saveApi">保存して接続を確かめる</button>
+    </div>
+    <div class="message" id="apiMessage"></div>
+  </details>
+
   <section class="card">
     <h2>2. 生徒用リンクを配る <span class="round-label" id="roundTitle"></span></h2>
     <p class="muted" id="linkNote"></p>
@@ -42,7 +57,11 @@
   </section>
 
   <section class="card">
-    <h2>3. 提出ファイルを読み込む</h2>
+    <h2>3. 提出を読み込む</h2>
+    <div class="form-row" id="apiLoadRow" hidden style="margin-bottom:12px">
+      <button type="button" class="primary" id="loadApi">スプレッドシートから読み込む</button>
+      <span class="muted">今回（第<span id="loadRound"></span>回）の提出をすべて読み込みます。何度押しても大丈夫です。</span>
+    </div>
     <div class="dropzone" id="dropzone">
       <p>生徒から集めた JSON ファイルをここにドラッグ＆ドロップ<br>（複数まとめて可）</p>
       <input type="file" id="fileInput" accept=".json,application/json" multiple>
@@ -103,6 +122,7 @@
 <script>
 (() => {
   const LAYOUT_KEY = "seats-change-app.layout";
+  const API_KEY = "seats-change-app.api";
   const PROGRESS_KEY = "seats-change-app.progress";
   const rowsInput = document.getElementById("rows");
   const colsInput = document.getElementById("cols");
@@ -128,6 +148,10 @@
     round: savedProgress && Number.isInteger(savedProgress.round) ? savedProgress.round : 1,
     confirmed: savedProgress && Array.isArray(savedProgress.confirmed) ? savedProgress.confirmed : [],
   };
+
+  // スプレッドシートの設定 {url, key}
+  const api = Object.assign({ url: "", key: "" }, loadJson(API_KEY) || {});
+  const apiReady = () => SeatApp.isApiUrl(api.url) && api.key !== "";
 
   // 今回の提出：出席番号 → {number, name, row, col, submittedAt}
   const submissions = new Map();
@@ -162,6 +186,7 @@
   function studentUrl() {
     let q = SeatApp.layoutToQuery(layout) + "&round=" + progress.round;
     if (progress.confirmed.length) q += "&taken=" + [...takenKeys()].join(",");
+    if (apiReady()) q += "&api=" + encodeURIComponent(api.url);
     return new URL("student.html?" + q, location.href).href;
   }
 
@@ -213,6 +238,9 @@
     document.getElementById("linkNote").textContent = progress.round === 1
       ? "このリンクを生徒に配ると、この配置の座席表で希望の席を1つ選べます。"
       : `第${progress.round}回のリンクです。席がまだ決まっていない人に配ってください。決定済みの席は選べなくなっています。`;
+    document.getElementById("apiState").textContent = apiReady() ? "（設定済み）" : "（未設定）";
+    document.getElementById("apiLoadRow").hidden = !apiReady();
+    document.getElementById("loadRound").textContent = progress.round;
     const url = studentUrl();
     document.getElementById("studentLink").value = url;
     document.getElementById("openStudent").href = url;
@@ -229,47 +257,55 @@
 
   async function loadFiles(fileList) {
     // FileList は input をリセットすると空になるので先に配列へ写す
-    const files = [...fileList];
+    const items = [];
+    for (const file of [...fileList]) {
+      try {
+        items.push({ label: file.name, data: JSON.parse(await file.text()) });
+      } catch (e) {
+        items.push({ label: file.name, error: "JSONとして読めませんでした" });
+      }
+    }
+    ingest(items, "読み込めなかったファイル");
+  }
+
+  // items: [{label, data}] または [{label, error}]
+  function ingest(items, errorTitle) {
     const errors = [];
     const warnings = [];
     let added = 0;
     const done = confirmedNumbers();
-    for (const file of files) {
-      try {
-        const data = JSON.parse(await file.text());
-        // 以前の形式（第1〜第3希望）のファイルは第1希望だけを使う
-        if (data && !data.choice && Array.isArray(data.choices)) {
-          data.choice = data.choices.find(c => c.rank === 1) || data.choices[0];
-        }
-        if (data) data.choice = data.choice || {};
-        const err = validate(data);
-        if (err) { errors.push(`${file.name}：${err}`); continue; }
-        const fileRound = Number.isInteger(data.round) ? data.round : 1;
-        if (fileRound !== progress.round) {
-          errors.push(`${file.name}：第${fileRound}回のファイルです（いまは第${progress.round}回）`);
-          continue;
-        }
-        if (done.has(data.number)) {
-          warnings.push(`${file.name}：${data.number}番はすでに席が決まっているので使いません`);
-          continue;
-        }
-        const entry = {
-          number: data.number,
-          name: data.name.trim(),
-          row: data.choice.row,
-          col: data.choice.col,
-          submittedAt: data.submittedAt || "",
-        };
-        const prev = submissions.get(entry.number);
-        if (!prev || String(entry.submittedAt) >= String(prev.submittedAt)) submissions.set(entry.number, entry);
-        added++;
-      } catch (e) {
-        errors.push(`${file.name}：JSONとして読めませんでした`);
+    for (const { label, data, error } of items) {
+      if (error) { errors.push(`${label}：${error}`); continue; }
+      // 以前の形式（第1〜第3希望）のファイルは第1希望だけを使う
+      if (data && !data.choice && Array.isArray(data.choices)) {
+        data.choice = data.choices.find(c => c.rank === 1) || data.choices[0];
       }
+      if (data) data.choice = data.choice || {};
+      const err = validate(data);
+      if (err) { errors.push(`${label}：${err}`); continue; }
+      const fileRound = Number.isInteger(data.round) ? data.round : 1;
+      if (fileRound !== progress.round) {
+        errors.push(`${label}：第${fileRound}回の提出です（いまは第${progress.round}回）`);
+        continue;
+      }
+      if (done.has(data.number)) {
+        warnings.push(`${label}：${data.number}番はすでに席が決まっているので使いません`);
+        continue;
+      }
+      const entry = {
+        number: data.number,
+        name: data.name.trim(),
+        row: data.choice.row,
+        col: data.choice.col,
+        submittedAt: data.submittedAt || "",
+      };
+      const prev = submissions.get(entry.number);
+      if (!prev || String(entry.submittedAt) >= String(prev.submittedAt)) submissions.set(entry.number, entry);
+      added++;
     }
     messageEl.className = "message " + (errors.length || warnings.length ? "error" : "ok");
-    messageEl.innerHTML = `${added}件読み込みました。` +
-      (errors.length ? "<br>読み込めなかったファイル：<br>" + errors.map(escapeHtml).join("<br>") : "") +
+    messageEl.innerHTML = `${added}件読み込みました（${submissions.size}人分）。` +
+      (errors.length ? `<br>${errorTitle}：<br>` + errors.map(escapeHtml).join("<br>") : "") +
       (warnings.length ? "<br>注意：<br>" + warnings.map(escapeHtml).join("<br>") : "");
     render();
   }
@@ -455,6 +491,65 @@
     msg.textContent = "生徒用リンクをコピーしました。";
   });
   document.getElementById("csv").addEventListener("click", downloadCsv);
+
+  const apiUrlInput = document.getElementById("apiUrl");
+  const apiKeyInput = document.getElementById("apiKey");
+  const apiMessage = document.getElementById("apiMessage");
+  apiUrlInput.value = api.url;
+  apiKeyInput.value = api.key;
+
+  document.getElementById("saveApi").addEventListener("click", async () => {
+    const url = apiUrlInput.value.trim();
+    const key = apiKeyInput.value;
+    if (url === "" && key === "") {
+      Object.assign(api, { url: "", key: "" });
+      saveJson(API_KEY, api);
+      apiMessage.className = "message ok";
+      apiMessage.textContent = "設定を消しました。ファイルでのやり取りに戻ります。";
+      changed();
+      return;
+    }
+    if (!SeatApp.isApiUrl(url)) {
+      apiMessage.className = "message error";
+      apiMessage.textContent = "URL は https://script.google.com/macros/s/…/exec の形で入れてください。";
+      return;
+    }
+    apiMessage.className = "message";
+    apiMessage.textContent = "接続を確かめています…";
+    try {
+      await SeatApp.listFromApi(url, key, progress.round);
+      Object.assign(api, { url, key });
+      saveJson(API_KEY, api);
+      apiMessage.className = "message ok";
+      apiMessage.textContent = "つながりました。生徒用リンクが、提出がスプレッドシートに届くリンクに変わりました。";
+      changed();
+    } catch (e) {
+      apiMessage.className = "message error";
+      apiMessage.textContent = e.message === "合言葉が違います"
+        ? "合言葉が違います。Apps Script の TEACHER_KEY と同じものを入れてください。"
+        : "つながりませんでした。URL と、デプロイの「アクセスできるユーザー」が「全員」になっているかを確かめてください。";
+    }
+  });
+
+  document.getElementById("loadApi").addEventListener("click", async () => {
+    const btn = document.getElementById("loadApi");
+    btn.disabled = true;
+    messageEl.className = "message";
+    messageEl.textContent = "スプレッドシートから読み込んでいます…";
+    try {
+      const list = await SeatApp.listFromApi(api.url, api.key, progress.round);
+      submissions.clear();
+      ingest(list.map(d => ({
+        label: `${d.number}番`,
+        data: { ...d, app: SeatApp.APP_ID },
+      })), "使えなかった提出");
+    } catch (e) {
+      messageEl.className = "message error";
+      messageEl.textContent = "読み込めませんでした：" + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   changed();
 })();
