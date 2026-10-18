@@ -89,7 +89,12 @@
 
   <section class="card">
     <h2>5. 座席表</h2>
+    <label class="check">
+      <input type="checkbox" id="assignMode">
+      先生が生徒を配置する（席をクリックして出席番号と名前を入れる。配置済みの席をクリックすると取り消し）
+    </label>
     <p class="legend">
+      <span class="badge teacher-badge">先生が配置</span>
       <span class="badge confirmed-badge">決定済</span>
       <span class="badge ok-badge">今回決定</span>
       <span class="badge r1">かぶり</span>
@@ -106,7 +111,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>番号</th><th>名前</th><th>席</th><th>決まった回</th></tr>
+          <tr><th>番号</th><th>名前</th><th>席</th><th>決まり方</th></tr>
         </thead>
         <tbody id="confirmedBody"></tbody>
       </table>
@@ -236,7 +241,8 @@
   function renderLink() {
     document.getElementById("roundTitle").textContent = `（第${progress.round}回）`;
     document.getElementById("linkNote").textContent = progress.round === 1
-      ? "このリンクを生徒に配ると、この配置の座席表で希望の席を1つ選べます。"
+      ? "このリンクを生徒に配ると、この配置の座席表で希望の席を1つ選べます。" +
+        (progress.confirmed.length ? "先生が配置した席は選べなくなっています。配置した生徒にはリンクを配らなくて大丈夫です。" : "")
       : `第${progress.round}回のリンクです。席がまだ決まっていない人に配ってください。決定済みの席は選べなくなっています。`;
     document.getElementById("apiState").textContent = apiReady() ? "（設定済み）" : "（未設定）";
     document.getElementById("apiLoadRow").hidden = !apiReady();
@@ -330,6 +336,38 @@
     return { results, bySeat };
   }
 
+  // round 0 は先生が配置した席
+  function decidedText(c) {
+    return c.round === 0 ? "先生が配置" : `第${c.round}回で決定`;
+  }
+
+  const assignMode = document.getElementById("assignMode");
+
+  function assign(row, col) {
+    const numText = prompt(`${SeatApp.seatLabel(layout, row, col)} に配置する生徒の出席番号`);
+    if (numText === null) return;
+    const number = parseInt(numText, 10);
+    if (!Number.isInteger(number) || number < 1) { alert("出席番号を数字で入れてください。"); return; }
+    const already = progress.confirmed.find(c => c.number === number);
+    if (already) {
+      alert(`${number}番はすでに ${seatText(already.row, already.col)} に決まっています。先にそちらを取り消してください。`);
+      return;
+    }
+    const known = submissions.get(number);
+    const name = (prompt(`${number}番の名前`, known ? known.name : "") || "").trim();
+    if (!name) return;
+    progress.confirmed.push({ number, name, row, col, round: 0 });
+    // 今回の提出はもう使わない
+    submissions.delete(number);
+    changed();
+  }
+
+  function unassign(c) {
+    if (!confirm(`${c.number}番 ${c.name}（${seatText(c.row, c.col)}・${decidedText(c)}）を取り消して、席を空けますか？`)) return;
+    progress.confirmed = progress.confirmed.filter(x => x !== c);
+    changed();
+  }
+
   function statusText(r) {
     if (r.status === "ok") return '<span class="status ok">決定</span>';
     if (r.status === "clash") return `<span class="status clash">かぶり（${r.rivals}人）</span>`;
@@ -375,8 +413,8 @@
         const fixed = confirmedBySeat.get(k);
         const wanted = bySeat.get(k) || [];
         if (fixed) {
-          div.classList.add("confirmed");
-          body = `<span>${fixed.number} ${escapeHtml(fixed.name)}</span><span class="muted">第${fixed.round}回で決定</span>`;
+          div.classList.add(fixed.round === 0 ? "assigned" : "confirmed");
+          body = `<span>${fixed.number} ${escapeHtml(fixed.name)}</span><span class="muted">${decidedText(fixed)}</span>`;
         } else if (wanted.length === 1) {
           div.classList.add("ok");
           body = `<span class="n-ok">${wanted[0].number} ${escapeHtml(wanted[0].name)}</span>`;
@@ -385,6 +423,10 @@
           body = wanted.map(w => `<span class="n1">${w.number} ${escapeHtml(w.name)}</span>`).join("");
         }
         div.innerHTML = `<div class="pos">${SeatApp.seatShortLabel(layout, r, c)}</div><div class="names">${body}</div>`;
+        if (assignMode.checked) {
+          div.classList.add("clickable");
+          div.addEventListener("click", () => fixed ? unassign(fixed) : assign(r, c));
+        }
         grid.appendChild(div);
       }
     }
@@ -399,7 +441,7 @@
       '<tr><td colspan="4" class="muted">まだありません</td></tr>';
     for (const c of confirmed) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${c.number}</td><td>${escapeHtml(c.name)}</td><td>${seatText(c.row, c.col)}</td><td>第${c.round}回</td>`;
+      tr.innerHTML = `<td>${c.number}</td><td>${escapeHtml(c.name)}</td><td>${seatText(c.row, c.col)}</td><td>${decidedText(c)}</td>`;
       cbody.appendChild(tr);
     }
   }
@@ -444,7 +486,7 @@
     const header = ["出席番号", "名前", "席", "状態"];
     const quote = v => `"${String(v).replace(/"/g, '""')}"`;
     const rows = [
-      ...progress.confirmed.map(c => [c.number, c.name, seatText(c.row, c.col), `第${c.round}回で決定`]),
+      ...progress.confirmed.map(c => [c.number, c.name, seatText(c.row, c.col), decidedText(c)]),
       ...results.map(r => [r.number, r.name, seatText(r.row, r.col),
         `第${progress.round}回 ${r.status === "ok" ? "決定（未確定）" : r.status === "clash" ? "かぶり" : "選べない席"}`]),
     ].sort((a, b) => a[0] - b[0]);
@@ -491,6 +533,7 @@
     msg.textContent = "生徒用リンクをコピーしました。";
   });
   document.getElementById("csv").addEventListener("click", downloadCsv);
+  assignMode.addEventListener("change", render);
 
   const apiUrlInput = document.getElementById("apiUrl");
   const apiKeyInput = document.getElementById("apiKey");
