@@ -9,7 +9,6 @@ const SeatApp = {
   DEFAULT_ROWS: 6,
   DEFAULT_COLS: 6,
   MAX_SIZE: 12,
-  RANK_LABELS: ["第1希望", "第2希望", "第3希望"],
 
   clampSize(value, fallback) {
     const n = parseInt(value, 10);
@@ -40,6 +39,24 @@ const SeatApp = {
     if (!params.has("rows") && !params.has("cols") && !params.has("off")) return null;
     const off = (params.get("off") || "").split(",").filter(Boolean);
     return this.makeLayout(params.get("rows"), params.get("cols"), off);
+  },
+
+  // "1-3,2-4" のような席のリストを [{row, col}] にする
+  parseSeatList(text) {
+    return String(text || "").split(",").filter(Boolean).map(k => {
+      const [row, col] = k.split("-").map(Number);
+      return { row, col };
+    }).filter(s => Number.isInteger(s.row) && Number.isInteger(s.col));
+  },
+
+  // 生徒用リンクの ?round=2&taken=1-3,2-4 （何回目の調査か・決定済みの席）
+  surveyFromUrl() {
+    const params = new URLSearchParams(location.search);
+    const round = parseInt(params.get("round"), 10);
+    return {
+      round: Number.isInteger(round) && round >= 1 ? round : 1,
+      taken: new Set(this.parseSeatList(params.get("taken")).map(s => this.key(s.row, s.col))),
+    };
   },
 
   layoutToQuery(layout) {
