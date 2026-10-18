@@ -34,8 +34,9 @@
 
   <section class="card">
     <h2>3. 提出する</h2>
-    <p class="muted">「提出ファイルを保存」を押すと JSON ファイルがダウンロードされます。そのファイルを先生の指示どおりに提出してください。</p>
+    <p class="muted" id="submitNote">「提出ファイルを保存」を押すと JSON ファイルがダウンロードされます。そのファイルを先生の指示どおりに提出してください。</p>
     <button type="button" class="primary" id="submit">提出ファイルを保存</button>
+    <button type="button" id="download" hidden>提出ファイルを保存する</button>
     <div class="message" id="message"></div>
   </section>
 
@@ -49,7 +50,14 @@
 <script>
 (() => {
   const layout = SeatApp.layoutFromUrl() || SeatApp.makeLayout();
-  const { round, taken } = SeatApp.surveyFromUrl();
+  const { round, taken, api } = SeatApp.surveyFromUrl();
+  const submitBtn = document.getElementById("submit");
+  const downloadBtn = document.getElementById("download");
+  if (api) {
+    submitBtn.textContent = "提出する";
+    document.getElementById("submitNote").textContent =
+      "「提出する」を押すと先生に届きます。出し直したいときは、選び直してもう一度押してください（最後に出したものが使われます）。";
+  }
   const { rows, cols } = layout;
   const grid = document.getElementById("grid");
   const choiceEl = document.getElementById("choice");
@@ -104,23 +112,23 @@
       (choice ? SeatApp.seatLabel(layout, choice.row, choice.col) : '<span class="muted">未選択</span>');
   }
 
-  document.getElementById("submit").addEventListener("click", () => {
+  function buildData() {
     const number = parseInt(document.getElementById("number").value, 10);
     const name = document.getElementById("name").value.trim();
     if (!Number.isFinite(number) || number < 1) {
       showMessage("出席番号を入力してください。", "error");
-      return;
+      return null;
     }
     if (!name) {
       showMessage("名前を入力してください。", "error");
-      return;
+      return null;
     }
     if (!choice) {
       showMessage("希望の席を1つ選んでください。", "error");
-      return;
+      return null;
     }
 
-    const data = {
+    return {
       app: SeatApp.APP_ID,
       version: SeatApp.VERSION,
       round,
@@ -132,16 +140,45 @@
       choice: { row: choice.row, col: choice.col },
       submittedAt: new Date().toISOString(),
     };
+  }
+
+  function download(data) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     // 日本語のファイル名は環境によって無視されるため、回と出席番号だけにする
-    a.download = `seat_r${round}_${String(number).padStart(2, "0")}.json`;
+    a.download = `seat_r${round}_${String(data.number).padStart(2, "0")}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    showMessage(`「${a.download}」を保存しました。このファイルを提出してください。`, "ok");
+    showMessage(`「${a.download}」を保存しました。このファイルを先生に提出してください。`, "ok");
+  }
+
+  submitBtn.addEventListener("click", async () => {
+    const data = buildData();
+    if (!data) return;
+    if (!api) {
+      download(data);
+      return;
+    }
+    submitBtn.disabled = true;
+    downloadBtn.hidden = true;
+    showMessage("送信中です…");
+    try {
+      await SeatApp.postToApi(api, data);
+      showMessage(`提出しました（${SeatApp.seatLabel(layout, data.choice.row, data.choice.col)}）。`, "ok");
+    } catch (e) {
+      showMessage("送信できませんでした。少し待ってからもう一度押すか、下のボタンでファイルを保存して先生に渡してください。", "error");
+      downloadBtn.hidden = false;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  downloadBtn.addEventListener("click", () => {
+    const data = buildData();
+    if (data) download(data);
   });
 
   render();
