@@ -214,3 +214,25 @@ button.seat.aisle.editable {
 
 h3.sub { font-size: 1rem; margin: 16px 0 4px; }
 .link-box { flex: 1 1 320px; font-size: 0.85rem; }
+
+/* 決定済みの席 */
+.seat.taken {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+.seat.taken .rank { color: #6b7280; font-size: 0.8rem; }
+.round-label { font-size: 1rem; color: var(--muted); }
+.choice { margin: 12px 0 0; }
+
+/* 教員用：決定・かぶりの表示 */
+.seat-grid.teacher .seat.confirmed { background: #e5e7eb; border-color: #9ca3af; }
+.seat-grid.teacher .seat.ok { border-color: var(--r3); background: #ecfdf5; }
+.seat-grid.teacher .names .n-ok { color: #047857; font-weight: bold; }
+.badge.confirmed-badge { background: #6b7280; }
+.badge.ok-badge { background: var(--r3); }
+.status { font-weight: bold; }
+.status.ok { color: #047857; }
+.status.clash { color: var(--r1); }
+.status.invalid { color: var(--muted); }
+.seat-grid.teacher .names .muted { font-size: inherit; }
