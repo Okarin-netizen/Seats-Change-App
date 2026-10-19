@@ -243,3 +243,14 @@ h3.sub { font-size: 1rem; margin: 16px 0 4px; }
 .seat-grid.teacher .seat.clickable { cursor: pointer; }
 .seat-grid.teacher .seat.clickable:hover { border-color: var(--accent); }
 label.check { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+/* 決定済みの席の移動 */
+.move-banner {
+  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+  padding: 8px 12px; margin-bottom: 12px; font-weight: bold;
+}
+.move-banner[hidden] { display: none; }
+.seat-grid.teacher .seat.moving { outline: 3px solid var(--accent); }
+td.actions { white-space: nowrap; }
+button.small { font-size: 0.85rem; padding: 2px 8px; margin-right: 4px; }

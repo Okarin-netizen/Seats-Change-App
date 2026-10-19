@@ -99,6 +99,10 @@
       <span class="badge ok-badge">今回決定</span>
       <span class="badge r1">かぶり</span>
     </p>
+    <div class="move-banner" id="moveBanner" hidden>
+      <span id="moveText"></span>
+      <button type="button" id="cancelMove">やめる</button>
+    </div>
     <div class="front">教卓（前）</div>
     <div class="grid-wrap">
       <div class="seat-grid teacher" id="grid"></div>
@@ -111,7 +115,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>番号</th><th>名前</th><th>席</th><th>決まり方</th></tr>
+          <tr><th>番号</th><th>名前</th><th>席</th><th>決まり方</th><th>変更</th></tr>
         </thead>
         <tbody id="confirmedBody"></tbody>
       </table>
@@ -365,6 +369,30 @@
   function unassign(c) {
     if (!confirm(`${c.number}番 ${c.name}（${seatText(c.row, c.col)}・${decidedText(c)}）を取り消して、席を空けますか？`)) return;
     progress.confirmed = progress.confirmed.filter(x => x !== c);
+    if (moving === c) moving = null;
+    changed();
+  }
+
+  // ---- 決定済みの席を動かす ----
+  let moving = null; // 移動中の決定済みエントリ
+
+  function startMove(c) {
+    moving = c;
+    render();
+    document.getElementById("moveBanner").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function moveTo(row, col, other) {
+    const c = moving;
+    moving = null;
+    if (other === c) { render(); return; }
+    if (other) {
+      // 決定済みの人がいる席なら入れ替える
+      if (!confirm(`${c.number}番 ${c.name} と ${other.number}番 ${other.name} の席を入れ替えますか？`)) { render(); return; }
+      [other.row, other.col] = [c.row, c.col];
+    }
+    c.row = row;
+    c.col = col;
     changed();
   }
 
@@ -392,6 +420,11 @@
     document.getElementById("nextRound").disabled = okCount === 0;
 
     // 座席表
+    document.getElementById("moveBanner").hidden = !moving;
+    if (moving) {
+      document.getElementById("moveText").textContent =
+        `${moving.number}番 ${moving.name}（いまは ${seatText(moving.row, moving.col)}）の移動先の席をクリックしてください。決定済みの人がいる席を選ぶと入れ替えます。`;
+    }
     const confirmedBySeat = new Map(progress.confirmed.map(c => [SeatApp.key(c.row, c.col), c]));
     const grid = document.getElementById("grid");
     grid.style.gridTemplateColumns = `repeat(${layout.cols}, auto)`;
@@ -423,7 +456,11 @@
           body = wanted.map(w => `<span class="n1">${w.number} ${escapeHtml(w.name)}</span>`).join("");
         }
         div.innerHTML = `<div class="pos">${SeatApp.seatShortLabel(layout, r, c)}</div><div class="names">${body}</div>`;
-        if (assignMode.checked) {
+        if (moving) {
+          div.classList.add("clickable");
+          if (fixed === moving) div.classList.add("moving");
+          div.addEventListener("click", () => moveTo(r, c, fixed));
+        } else if (assignMode.checked) {
           div.classList.add("clickable");
           div.addEventListener("click", () => fixed ? unassign(fixed) : assign(r, c));
         }
@@ -438,10 +475,13 @@
     document.getElementById("confirmedCount").textContent = `（${confirmed.length}人）`;
     const cbody = document.getElementById("confirmedBody");
     cbody.innerHTML = confirmed.length ? "" :
-      '<tr><td colspan="4" class="muted">まだありません</td></tr>';
+      '<tr><td colspan="5" class="muted">まだありません</td></tr>';
     for (const c of confirmed) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${c.number}</td><td>${escapeHtml(c.name)}</td><td>${seatText(c.row, c.col)}</td><td>${decidedText(c)}</td>`;
+      tr.innerHTML = `<td>${c.number}</td><td>${escapeHtml(c.name)}</td><td>${seatText(c.row, c.col)}</td><td>${decidedText(c)}</td>` +
+        '<td class="actions"><button type="button" class="small move">席を変える</button><button type="button" class="small remove">取り消す</button></td>';
+      tr.querySelector(".move").addEventListener("click", () => startMove(c));
+      tr.querySelector(".remove").addEventListener("click", () => unassign(c));
       cbody.appendChild(tr);
     }
   }
@@ -534,6 +574,7 @@
   });
   document.getElementById("csv").addEventListener("click", downloadCsv);
   assignMode.addEventListener("change", render);
+  document.getElementById("cancelMove").addEventListener("click", () => { moving = null; render(); });
 
   const apiUrlInput = document.getElementById("apiUrl");
   const apiKeyInput = document.getElementById("apiKey");
