@@ -67,19 +67,45 @@ const SeatApp = {
   },
 
   // Google Apps Script へ送る。text/plain にすると事前確認（CORS プリフライト）が起きない
-  async postToApi(api, data) {
-    const res = await fetch(api, { method: "POST", body: JSON.stringify(data) });
-    const body = await res.json();
-    if (!body.ok) throw new Error(body.error || "送信に失敗しました");
-    return body;
+  postToApi(api, data) {
+    return this.requestApi(api, { method: "POST", body: JSON.stringify(data) }, "送信に失敗しました");
   },
 
   async listFromApi(api, key, round) {
     const url = `${api}?action=list&round=${round}&key=${encodeURIComponent(key)}`;
-    const res = await fetch(url);
-    const body = await res.json();
-    if (!body.ok) throw new Error(body.error || "読み込みに失敗しました");
+    const body = await this.requestApi(url, {}, "読み込みに失敗しました");
+    if (!Array.isArray(body.submissions)) throw new Error("読み込みに失敗しました");
     return body.submissions;
+  },
+
+  // 返事が JSON でないとき（デプロイの設定ミスでログイン画面が返るなど）もわかるメッセージにする
+  async requestApi(url, options, failMessage) {
+    const res = await fetch(url, options);
+    let body;
+    try {
+      body = await res.json();
+    } catch (e) {
+      throw new Error(`${failMessage}（返事が読めませんでした）`);
+    }
+    if (!body || !body.ok) throw new Error((body && body.error) || failMessage);
+    return body;
+  },
+
+  // ファイルとしてダウンロードさせる
+  downloadBlob(blob, filename) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+
+  // type は "ok" / "error" / 省略
+  showMessage(el, text, type) {
+    el.textContent = text;
+    el.className = "message " + (type || "");
   },
 
   layoutToQuery(layout) {

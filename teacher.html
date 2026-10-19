@@ -23,7 +23,7 @@
       </label>
       <button type="button" id="resetLayout">通路をすべて消す</button>
     </div>
-    <div class="front" style="margin-top:12px">教卓（前）</div>
+    <div class="front mt">教卓（前）</div>
     <div class="grid-wrap">
       <div class="seat-grid editor" id="editor"></div>
     </div>
@@ -34,7 +34,7 @@
     <summary><strong>Google スプレッドシートで提出を受け取る（設定）</strong> <span class="muted" id="apiState"></span></summary>
     <p class="muted">設定すると、生徒は「提出する」を押すだけで提出でき、ここでは「スプレッドシートから読み込む」で集計できます。設定しないときは、これまでどおりファイルでやり取りします。準備の手順は README の「Google スプレッドシートで提出を受け取る」を見てください。</p>
     <div class="form-row">
-      <label style="flex:1 1 320px">ウェブアプリの URL
+      <label class="wide">ウェブアプリの URL
         <input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec">
       </label>
       <label>合言葉（TEACHER_KEY）
@@ -58,7 +58,7 @@
 
   <section class="card">
     <h2>3. 提出を読み込む</h2>
-    <div class="form-row" id="apiLoadRow" hidden style="margin-bottom:12px">
+    <div class="form-row mb" id="apiLoadRow" hidden>
       <button type="button" class="primary" id="loadApi">スプレッドシートから読み込む</button>
       <span class="muted">今回（第<span id="loadRound"></span>回）の提出をすべて読み込みます。何度押しても大丈夫です。</span>
     </div>
@@ -81,7 +81,7 @@
         <tbody id="tbody"></tbody>
       </table>
     </div>
-    <div class="form-row" style="margin-top:12px">
+    <div class="form-row mt">
       <button type="button" class="primary" id="nextRound">決定して次の調査へ進む</button>
     </div>
     <p class="muted">押すと「決定」の人の席が確定し、その席を選べなくした次の回の生徒用リンクが出ます。席が決まっていない人に配ってください。</p>
@@ -120,7 +120,7 @@
         <tbody id="confirmedBody"></tbody>
       </table>
     </div>
-    <div class="form-row" style="margin-top:12px">
+    <div class="form-row mt">
       <button type="button" id="csv">CSVで保存</button>
       <button type="button" id="restart">最初からやり直す</button>
     </div>
@@ -152,10 +152,13 @@
   colsInput.value = layout.cols;
 
   // 何回目の調査か と 決定済みの席 [{number, name, row, col, round}]
-  const savedProgress = loadJson(PROGRESS_KEY);
+  // 保存データが壊れていても動くよう、形の合わないものは捨てる
+  const savedProgress = loadJson(PROGRESS_KEY) || {};
   const progress = {
-    round: savedProgress && Number.isInteger(savedProgress.round) ? savedProgress.round : 1,
-    confirmed: savedProgress && Array.isArray(savedProgress.confirmed) ? savedProgress.confirmed : [],
+    round: Number.isInteger(savedProgress.round) && savedProgress.round >= 1 ? savedProgress.round : 1,
+    confirmed: (Array.isArray(savedProgress.confirmed) ? savedProgress.confirmed : []).filter(c =>
+      c && Number.isInteger(c.number) && typeof c.name === "string" &&
+      Number.isInteger(c.row) && Number.isInteger(c.col) && Number.isInteger(c.round)),
   };
 
   // スプレッドシートの設定 {url, key}
@@ -169,6 +172,10 @@
     return String(s).replace(/[&<>"']/g, ch => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[ch]));
+  }
+
+  function showMessage(text, type) {
+    SeatApp.showMessage(messageEl, text, type);
   }
 
   function formatDate(iso) {
@@ -257,12 +264,25 @@
   }
 
   // ---- 3. 読み込み ----
-  function validate(data) {
-    if (!data || data.app !== SeatApp.APP_ID) return "このアプリの提出ファイルではありません";
-    if (!Number.isInteger(data.number) || data.number < 1) return "出席番号がありません";
-    if (typeof data.name !== "string" || !data.name.trim()) return "名前がありません";
-    if (!Number.isInteger(data.choice.row) || !Number.isInteger(data.choice.col)) return "希望の席がありません";
-    return null;
+  // 提出データを {number, name, row, col, round, submittedAt} にする。使えないときは {error}
+  function toEntry(data) {
+    if (!data || typeof data !== "object" || data.app !== SeatApp.APP_ID) return { error: "このアプリの提出ファイルではありません" };
+    if (!Number.isInteger(data.number) || data.number < 1) return { error: "出席番号がありません" };
+    if (typeof data.name !== "string" || !data.name.trim()) return { error: "名前がありません" };
+    let choice = data.choice;
+    // 以前の形式（第1〜第3希望）のファイルは第1希望だけを使う
+    if (!choice && Array.isArray(data.choices)) {
+      choice = data.choices.find(c => c && c.rank === 1) || data.choices[0];
+    }
+    if (!choice || !Number.isInteger(choice.row) || !Number.isInteger(choice.col)) return { error: "希望の席がありません" };
+    return {
+      number: data.number,
+      name: data.name.trim(),
+      row: choice.row,
+      col: choice.col,
+      round: Number.isInteger(data.round) ? data.round : 1,
+      submittedAt: typeof data.submittedAt === "string" ? data.submittedAt : "",
+    };
   }
 
   async function loadFiles(fileList) {
@@ -284,33 +304,21 @@
     const warnings = [];
     let added = 0;
     const done = confirmedNumbers();
-    for (const { label, data, error } of items) {
+    for (const item of items) {
+      const { label } = item;
+      const { error, ...entry } = item.error ? { error: item.error } : toEntry(item.data);
       if (error) { errors.push(`${label}：${error}`); continue; }
-      // 以前の形式（第1〜第3希望）のファイルは第1希望だけを使う
-      if (data && !data.choice && Array.isArray(data.choices)) {
-        data.choice = data.choices.find(c => c.rank === 1) || data.choices[0];
-      }
-      if (data) data.choice = data.choice || {};
-      const err = validate(data);
-      if (err) { errors.push(`${label}：${err}`); continue; }
-      const fileRound = Number.isInteger(data.round) ? data.round : 1;
-      if (fileRound !== progress.round) {
-        errors.push(`${label}：第${fileRound}回の提出です（いまは第${progress.round}回）`);
+      if (entry.round !== progress.round) {
+        errors.push(`${label}：第${entry.round}回の提出です（いまは第${progress.round}回）`);
         continue;
       }
-      if (done.has(data.number)) {
-        warnings.push(`${label}：${data.number}番はすでに席が決まっているので使いません`);
+      if (done.has(entry.number)) {
+        warnings.push(`${label}：${entry.number}番はすでに席が決まっているので使いません`);
         continue;
       }
-      const entry = {
-        number: data.number,
-        name: data.name.trim(),
-        row: data.choice.row,
-        col: data.choice.col,
-        submittedAt: data.submittedAt || "",
-      };
+      // ISO 形式の日時は文字列のまま比べても新旧の順になる
       const prev = submissions.get(entry.number);
-      if (!prev || String(entry.submittedAt) >= String(prev.submittedAt)) submissions.set(entry.number, entry);
+      if (!prev || entry.submittedAt >= prev.submittedAt) submissions.set(entry.number, entry);
       added++;
     }
     messageEl.className = "message " + (errors.length || warnings.length ? "error" : "ok");
@@ -346,6 +354,7 @@
   }
 
   const assignMode = document.getElementById("assignMode");
+  let moving = null; // 席を移動中の決定済みエントリ
 
   function assign(row, col) {
     const numText = prompt(`${SeatApp.seatLabel(layout, row, col)} に配置する生徒の出席番号`);
@@ -374,7 +383,6 @@
   }
 
   // ---- 決定済みの席を動かす ----
-  let moving = null; // 移動中の決定済みエントリ
 
   function startMove(c) {
     moving = c;
@@ -396,17 +404,19 @@
     changed();
   }
 
+  const STATUS_LABELS = { ok: "決定", clash: "かぶり", invalid: "選べない席" };
+
   function statusText(r) {
-    if (r.status === "ok") return '<span class="status ok">決定</span>';
-    if (r.status === "clash") return `<span class="status clash">かぶり（${r.rivals}人）</span>`;
-    return '<span class="status invalid">選べない席</span>';
+    const label = r.status === "clash" ? `${STATUS_LABELS.clash}（${r.rivals}人）` : STATUS_LABELS[r.status];
+    return `<span class="status ${r.status}">${label}</span>`;
   }
 
   function render() {
     const { results, bySeat } = evaluate();
     const okCount = results.filter(r => r.status === "ok").length;
+    const clashCount = results.filter(r => r.status === "clash").length;
     document.getElementById("count").textContent =
-      `（提出 ${results.length}人・決定 ${okCount}人・かぶり ${results.filter(r => r.status === "clash").length}人）`;
+      `（提出 ${results.length}人・決定 ${okCount}人・かぶり ${clashCount}人）`;
 
     const tbody = document.getElementById("tbody");
     tbody.innerHTML = results.length ? "" :
@@ -507,8 +517,7 @@
     progress.round++;
     submissions.clear();
     changed();
-    messageEl.className = "message ok";
-    messageEl.textContent = `第${progress.round}回の調査を始めました。「2. 生徒用リンクを配る」のリンクを、席が決まっていない人に配ってください。`;
+    showMessage(`第${progress.round}回の調査を始めました。「2. 生徒用リンクを配る」のリンクを、席が決まっていない人に配ってください。`, "ok");
     document.getElementById("roundTitle").scrollIntoView({ behavior: "smooth", block: "center" });
   });
 
@@ -517,7 +526,8 @@
     progress.round = 1;
     progress.confirmed = [];
     submissions.clear();
-    messageEl.textContent = "";
+    moving = null;
+    showMessage("");
     changed();
   });
 
@@ -528,18 +538,12 @@
     const rows = [
       ...progress.confirmed.map(c => [c.number, c.name, seatText(c.row, c.col), decidedText(c)]),
       ...results.map(r => [r.number, r.name, seatText(r.row, r.col),
-        `第${progress.round}回 ${r.status === "ok" ? "決定（未確定）" : r.status === "clash" ? "かぶり" : "選べない席"}`]),
+        `第${progress.round}回 ${r.status === "ok" ? "決定（未確定）" : STATUS_LABELS[r.status]}`]),
     ].sort((a, b) => a[0] - b[0]);
     const lines = [header, ...rows].map(row => row.map(quote).join(","));
     // Excel で文字化けしないよう BOM を付ける
-    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "seat_survey.csv";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv" });
+    SeatApp.downloadBlob(blob, "seat_survey.csv");
   }
 
   const dropzone = document.getElementById("dropzone");
@@ -563,14 +567,18 @@
   document.getElementById("copyLink").addEventListener("click", async () => {
     const box = document.getElementById("studentLink");
     const msg = document.getElementById("copyMessage");
+    let copied = true;
     try {
       await navigator.clipboard.writeText(box.value);
     } catch (e) {
       box.select();
-      document.execCommand("copy");
+      copied = document.execCommand("copy");
     }
-    msg.className = "message ok";
-    msg.textContent = "生徒用リンクをコピーしました。";
+    if (copied) {
+      SeatApp.showMessage(msg, "生徒用リンクをコピーしました。", "ok");
+    } else {
+      SeatApp.showMessage(msg, "コピーできませんでした。リンクを選んで手でコピーしてください。", "error");
+    }
   });
   document.getElementById("csv").addEventListener("click", downloadCsv);
   assignMode.addEventListener("change", render);
@@ -588,38 +596,38 @@
     if (url === "" && key === "") {
       Object.assign(api, { url: "", key: "" });
       saveJson(API_KEY, api);
-      apiMessage.className = "message ok";
-      apiMessage.textContent = "設定を消しました。ファイルでのやり取りに戻ります。";
+      SeatApp.showMessage(apiMessage, "設定を消しました。ファイルでのやり取りに戻ります。", "ok");
       changed();
       return;
     }
     if (!SeatApp.isApiUrl(url)) {
-      apiMessage.className = "message error";
-      apiMessage.textContent = "URL は https://script.google.com/macros/s/…/exec の形で入れてください。";
+      SeatApp.showMessage(apiMessage, "URL は https://script.google.com/macros/s/…/exec の形で入れてください。", "error");
       return;
     }
-    apiMessage.className = "message";
-    apiMessage.textContent = "接続を確かめています…";
+    if (key === "") {
+      SeatApp.showMessage(apiMessage, "合言葉を入れてください。", "error");
+      return;
+    }
+    SeatApp.showMessage(apiMessage, "接続を確かめています…");
     try {
       await SeatApp.listFromApi(url, key, progress.round);
       Object.assign(api, { url, key });
       saveJson(API_KEY, api);
-      apiMessage.className = "message ok";
-      apiMessage.textContent = "つながりました。生徒用リンクが、提出がスプレッドシートに届くリンクに変わりました。";
+      SeatApp.showMessage(apiMessage, "つながりました。生徒用リンクが、提出がスプレッドシートに届くリンクに変わりました。", "ok");
       changed();
     } catch (e) {
-      apiMessage.className = "message error";
-      apiMessage.textContent = e.message === "合言葉が違います"
+      SeatApp.showMessage(apiMessage, e.message === "合言葉が違います"
         ? "合言葉が違います。Apps Script の TEACHER_KEY と同じものを入れてください。"
-        : "つながりませんでした。URL と、デプロイの「アクセスできるユーザー」が「全員」になっているかを確かめてください。";
+        : e.message === "TEACHER_KEY が初期値のままです"
+          ? "Apps Script の TEACHER_KEY を自分だけの合言葉に書き換えて、デプロイし直してください。"
+          : "つながりませんでした。URL と、デプロイの「アクセスできるユーザー」が「全員」になっているかを確かめてください。", "error");
     }
   });
 
   document.getElementById("loadApi").addEventListener("click", async () => {
     const btn = document.getElementById("loadApi");
     btn.disabled = true;
-    messageEl.className = "message";
-    messageEl.textContent = "スプレッドシートから読み込んでいます…";
+    showMessage("スプレッドシートから読み込んでいます…");
     try {
       const list = await SeatApp.listFromApi(api.url, api.key, progress.round);
       submissions.clear();
@@ -628,8 +636,7 @@
         data: { ...d, app: SeatApp.APP_ID },
       })), "使えなかった提出");
     } catch (e) {
-      messageEl.className = "message error";
-      messageEl.textContent = "読み込めませんでした：" + e.message;
+      showMessage("読み込めませんでした：" + e.message, "error");
     } finally {
       btn.disabled = false;
     }
