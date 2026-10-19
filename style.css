@@ -38,6 +38,8 @@ h2 { font-size: 1.15rem; margin: 0 0 12px; }
 }
 
 .muted { color: var(--muted); font-size: 0.9rem; }
+.mt { margin-top: 12px; }
+.mb { margin-bottom: 12px; }
 
 .form-row {
   display: flex;
@@ -47,6 +49,7 @@ h2 { font-size: 1.15rem; margin: 0 0 12px; }
 }
 
 label { display: flex; flex-direction: column; font-size: 0.9rem; gap: 4px; }
+label.wide { flex: 1 1 320px; }
 
 input[type="text"], input[type="number"] {
   font-size: 1rem;
@@ -114,8 +117,6 @@ button.seat:hover { border-color: var(--accent); }
   color: #fff;
 }
 .seat.rank1 { background: var(--r1); border-color: var(--r1); }
-.seat.rank2 { background: var(--r2); border-color: var(--r2); }
-.seat.rank3 { background: var(--r3); border-color: var(--r3); }
 .seat.rank1 .pos, .seat.rank2 .pos, .seat.rank3 .pos { color: #fff; }
 
 .choices { list-style: none; padding: 0; margin: 12px 0; }
@@ -132,8 +133,6 @@ button.seat:hover { border-color: var(--accent); }
   margin-right: 6px;
 }
 .badge.r1 { background: var(--r1); }
-.badge.r2 { background: var(--r2); }
-.badge.r3 { background: var(--r3); }
 
 .message { margin-top: 8px; font-weight: bold; }
 .message.error { color: var(--r1); }

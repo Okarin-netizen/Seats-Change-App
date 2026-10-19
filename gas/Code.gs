@@ -8,6 +8,8 @@
 
 // 教員用ページから提出一覧を読むときの合言葉（生徒には教えないでください）
 const TEACHER_KEY = "ここを合言葉に変える";
+// 書き換え忘れの確認用。上の行を一括置換したときに巻き込まれないよう、分けて書いている
+const DEFAULT_TEACHER_KEY = "ここを" + "合言葉に変える";
 
 const SHEET_NAME = "提出";
 const HEADER = ["受信日時", "回", "出席番号", "名前", "前から(列)", "左から(マス)", "提出日時"];
@@ -39,6 +41,9 @@ function doPost(e) {
   try {
     data = JSON.parse(e.postData.contents);
   } catch (err) {
+    data = null;
+  }
+  if (!data || typeof data !== "object") {
     return json_({ ok: false, error: "データが読めませんでした" });
   }
   const round = toInt_(data.round, 1, 99);
@@ -50,8 +55,11 @@ function doPost(e) {
     return json_({ ok: false, error: "入力が足りません" });
   }
 
+  // 混み合って順番待ちが長いときは、エラーの JSON を返して生徒に送り直してもらう
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  if (!lock.tryLock(10000)) {
+    return json_({ ok: false, error: "混み合っています。少し待ってからもう一度送ってください" });
+  }
   try {
     // 名前の先頭が = などでも数式にならないよう ' を付ける
     const safeName = /^[=+\-@]/.test(name) ? "'" + name : name;
@@ -69,6 +77,8 @@ function doGet(e) {
   const p = e.parameter || {};
   if (p.action === "ping") return json_({ ok: true });
   if (p.action !== "list") return json_({ ok: false, error: "不明な操作です" });
+  // 合言葉が初期値のままだと、README を読んだ人なら誰でも提出一覧を見られてしまう
+  if (TEACHER_KEY === DEFAULT_TEACHER_KEY) return json_({ ok: false, error: "TEACHER_KEY が初期値のままです" });
   if (p.key !== TEACHER_KEY) return json_({ ok: false, error: "合言葉が違います" });
 
   const round = toInt_(p.round, 1, 99);

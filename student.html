@@ -17,7 +17,7 @@
         <input type="number" id="number" min="1" max="99" required>
       </label>
       <label>名前
-        <input type="text" id="name" placeholder="例：山田 太郎" required>
+        <input type="text" id="name" placeholder="例：山田 太郎" maxlength="50" required>
       </label>
     </div>
   </section>
@@ -51,18 +51,19 @@
 (() => {
   const layout = SeatApp.layoutFromUrl() || SeatApp.makeLayout();
   const { round, taken, api } = SeatApp.surveyFromUrl();
+  const { rows, cols } = layout;
   const submitBtn = document.getElementById("submit");
   const downloadBtn = document.getElementById("download");
+  const grid = document.getElementById("grid");
+  const choiceEl = document.getElementById("choice");
+  const messageEl = document.getElementById("message");
+  let choice = null; // {row, col}
+
   if (api) {
     submitBtn.textContent = "提出する";
     document.getElementById("submitNote").textContent =
       "「提出する」を押すと先生に届きます。出し直したいときは、選び直してもう一度押してください（最後に出したものが使われます）。";
   }
-  const { rows, cols } = layout;
-  const grid = document.getElementById("grid");
-  const choiceEl = document.getElementById("choice");
-  const messageEl = document.getElementById("message");
-  let choice = null; // {row, col}
 
   document.getElementById("roundLabel").textContent = `（第${round}回）`;
   if (taken.size) {
@@ -70,8 +71,7 @@
   }
 
   function showMessage(text, type) {
-    messageEl.textContent = text;
-    messageEl.className = "message " + (type || "");
+    SeatApp.showMessage(messageEl, text, type);
   }
 
   function render() {
@@ -113,9 +113,9 @@
   }
 
   function buildData() {
-    const number = parseInt(document.getElementById("number").value, 10);
+    const number = Number(document.getElementById("number").value);
     const name = document.getElementById("name").value.trim();
-    if (!Number.isFinite(number) || number < 1) {
+    if (!Number.isInteger(number) || number < 1) {
       showMessage("出席番号を入力してください。", "error");
       return null;
     }
@@ -144,15 +144,10 @@
 
   function download(data) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
     // 日本語のファイル名は環境によって無視されるため、回と出席番号だけにする
-    a.download = `seat_r${round}_${String(data.number).padStart(2, "0")}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    showMessage(`「${a.download}」を保存しました。このファイルを先生に提出してください。`, "ok");
+    const filename = `seat_r${round}_${String(data.number).padStart(2, "0")}.json`;
+    SeatApp.downloadBlob(blob, filename);
+    showMessage(`「${filename}」を保存しました。このファイルを先生に提出してください。`, "ok");
   }
 
   submitBtn.addEventListener("click", async () => {
