@@ -12,7 +12,8 @@ const TEACHER_KEY = "ここを合言葉に変える";
 const DEFAULT_TEACHER_KEY = "ここを" + "合言葉に変える";
 
 const SHEET_NAME = "提出";
-const HEADER = ["受信日時", "回", "出席番号", "名前", "前から(列)", "左から(マス)", "提出日時"];
+// 第2希望の2列は後から足したので最後に置く（前からあるシートもそのまま使える）
+const HEADER = ["受信日時", "回", "出席番号", "名前", "前から(列)", "左から(マス)", "提出日時", "第2希望 前から(列)", "第2希望 左から(マス)"];
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -54,6 +55,9 @@ function doPost(e) {
   if (!round || !number || !name || !row || !col) {
     return json_({ ok: false, error: "入力が足りません" });
   }
+  // 第2希望は任意
+  const row2 = data.choice2 && toInt_(data.choice2.row, 1, 12);
+  const col2 = data.choice2 && toInt_(data.choice2.col, 1, 12);
 
   // 混み合って順番待ちが長いときは、エラーの JSON を返して生徒に送り直してもらう
   const lock = LockService.getScriptLock();
@@ -65,7 +69,8 @@ function doPost(e) {
     const safeName = /^[=+\-@]/.test(name) ? "'" + name : name;
     // 提出日時は日付に自動変換されないよう文字列のまま保存する
     const submittedAt = String(data.submittedAt || "").slice(0, 40);
-    getSheet_().appendRow([new Date(), round, number, safeName, row, col, submittedAt ? "'" + submittedAt : ""]);
+    getSheet_().appendRow([new Date(), round, number, safeName, row, col, submittedAt ? "'" + submittedAt : "",
+      row2 && col2 ? row2 : "", row2 && col2 ? col2 : ""]);
   } finally {
     lock.releaseLock();
   }
@@ -86,6 +91,7 @@ function doGet(e) {
   const submissions = values
     .filter(v => !round || Number(v[1]) === round)
     .map(v => ({
+      choice2: v[7] && v[8] ? { row: Number(v[7]), col: Number(v[8]) } : undefined,
       round: Number(v[1]),
       number: Number(v[2]),
       name: String(v[3]).replace(/^'/, ""),
