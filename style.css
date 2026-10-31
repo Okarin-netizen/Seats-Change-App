@@ -253,3 +253,66 @@ label.check { flex-direction: row; align-items: center; gap: 8px; margin-bottom:
 .seat-grid.teacher .seat.moving { outline: 3px solid var(--accent); }
 td.actions { white-space: nowrap; }
 button.small { font-size: 0.85rem; padding: 2px 8px; margin-right: 4px; }
+
+/* 第2希望・人気の席（生徒用） */
+.seat.rank2 { background: var(--r2); border-color: var(--r2); }
+.badge.r2 { background: var(--r2); }
+button.seat.hot { border-color: var(--r2); border-style: dashed; }
+.seat .hot-mark { font-size: 0.7rem; font-weight: bold; color: #b45309; }
+.badge.hot-badge { background: #b45309; }
+
+/* 名簿・条件・結果 */
+textarea {
+  width: 100%;
+  font-size: 1rem;
+  font-family: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+select { font-size: 1rem; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.warn { color: #b45309; font-size: 0.8rem; font-weight: bold; }
+.status.lost { color: var(--muted); }
+.remain { font-weight: bold; margin: 0 0 4px; }
+
+/* 元に戻す */
+.undo-bar {
+  position: fixed; right: 16px; bottom: 16px; z-index: 10;
+  display: flex; gap: 8px; align-items: center;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); font-size: 0.9rem;
+}
+.undo-bar[hidden] { display: none; }
+
+/* 発表モード */
+.present {
+  position: fixed; inset: 0; z-index: 20; overflow: auto;
+  background: #fff; padding: 16px 24px;
+}
+.present[hidden] { display: none; }
+body.presenting { overflow: hidden; }
+.present-head { display: flex; gap: 16px; align-items: center; justify-content: space-between; font-weight: bold; }
+.present-caption { text-align: center; font-size: 2rem; font-weight: bold; margin: 12px 0; min-height: 3rem; }
+.present-grid .seat, .print-grid .seat { color: var(--text); }
+.present-grid .seat { width: 110px; height: 80px; cursor: pointer; }
+.present-grid .seat.shown { background: #ecfdf5; border-color: var(--r3); }
+.present-grid .seat.current { background: #fef3c7; border-color: var(--r2); outline: 4px solid var(--r2); }
+.present-grid .p-name { font-size: 1.15rem; font-weight: bold; }
+.present-grid .p-num, .print-grid .p-num { font-size: 0.8rem; color: var(--muted); }
+.present-controls { justify-content: center; }
+.present-controls button { font-size: 1.2rem; padding: 10px 32px; }
+
+/* 印刷（座席表だけを A4 横 1 枚に） */
+.print-area { display: none; }
+.print-grid { gap: 4px; }
+.print-grid .seat { width: 21mm; height: 15mm; border-color: #555; border-radius: 4px; }
+.print-grid .seat.aisle { width: 6mm; border: none; }
+.print-grid .p-name { font-size: 10pt; font-weight: bold; text-align: center; line-height: 1.2; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff; }
+  main, .undo-bar, .present { display: none !important; }
+  .print-area { display: block; text-align: center; }
+  .print-area h1 { margin: 0 0 4px; }
+}
+.front.mt { margin-top: 12px; }

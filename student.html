@@ -24,7 +24,14 @@
 
   <section class="card">
     <h2>2. 希望の座席を選ぶ</h2>
-    <p class="muted">座りたい席を1つクリックしてください。別の席をクリックすると選び直せます。<span id="takenNote"></span></p>
+    <p class="muted"><span id="howTo">座りたい席を1つクリックしてください。別の席をクリックすると選び直せます。</span><span id="takenNote"></span></p>
+    <p class="message" id="limitNote" hidden></p>
+    <div class="form-row mb" id="rankSwitch" hidden>
+      <span>いま選んでいるのは：</span>
+      <label class="check"><input type="radio" name="rank" value="1" checked> 第1希望</label>
+      <label class="check"><input type="radio" name="rank" value="2"> 第2希望</label>
+    </div>
+    <p class="legend" id="hotLegend" hidden><span class="badge hot-badge">人気</span>前回、希望がかぶった席です。ほかの席も考えてみてください。</p>
     <div class="front">教卓（前）</div>
     <div class="grid-wrap">
       <div class="seat-grid" id="grid"></div>
@@ -50,14 +57,16 @@
 <script>
 (() => {
   const layout = SeatApp.layoutFromUrl() || SeatApp.makeLayout();
-  const { round, taken, api } = SeatApp.surveyFromUrl();
+  const { round, taken, hot, second, prev, maxRow, number: presetNumber, api } = SeatApp.surveyFromUrl();
   const { rows, cols } = layout;
   const submitBtn = document.getElementById("submit");
   const downloadBtn = document.getElementById("download");
   const grid = document.getElementById("grid");
   const choiceEl = document.getElementById("choice");
   const messageEl = document.getElementById("message");
-  let choice = null; // {row, col}
+  const numberInput = document.getElementById("number");
+  let choice = null;  // 第1希望 {row, col}
+  let choice2 = null; // 第2希望 {row, col}（second=1 のときだけ）
 
   if (api) {
     submitBtn.textContent = "提出する";
@@ -69,12 +78,45 @@
   if (taken.size) {
     document.getElementById("takenNote").textContent = "灰色の「決定済」の席は、前回までに決まった席なので選べません。";
   }
+  if (presetNumber) numberInput.value = presetNumber;
+  if (maxRow) {
+    const note = document.getElementById("limitNote");
+    note.hidden = false;
+    note.textContent = `あなたは前から${maxRow}列目までの席から選んでください。`;
+  }
+  if (second) {
+    document.getElementById("rankSwitch").hidden = false;
+    document.getElementById("howTo").textContent =
+      "第1希望と第2希望を1つずつクリックしてください。第1希望がほかの人とかぶったときは、空いていれば第2希望の席になります。第2希望は選ばなくても提出できます。";
+  }
+  document.getElementById("hotLegend").hidden = hot.size === 0;
 
   function showMessage(text, type) {
     SeatApp.showMessage(messageEl, text, type);
   }
 
+  const currentRank = () => second && document.querySelector('input[name="rank"]:checked').value === "2" ? 2 : 1;
+  const same = (a, r, c) => a && a.row === r && a.col === c;
+
+  // 入力中の出席番号の、前回の席（先生が「前回と同じ席を選べなくする」にしたときだけ届く）
+  function prevKey() {
+    const n = Number(numberInput.value);
+    return prev.get(n) || "";
+  }
+
+  // 選べない理由。選べるときは ""
+  function blockReason(r, c) {
+    if (taken.has(SeatApp.key(r, c))) return "決定済";
+    if (maxRow && r > maxRow) return "選べない";
+    if (prevKey() === SeatApp.key(r, c)) return "前回の席";
+    return "";
+  }
+
   function render() {
+    // 出席番号を変えて選べなくなった席は外す
+    if (choice && blockReason(choice.row, choice.col)) choice = null;
+    if (choice2 && blockReason(choice2.row, choice2.col)) choice2 = null;
+
     grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
     grid.innerHTML = "";
     for (let r = 1; r <= rows; r++) {
@@ -90,30 +132,45 @@
         btn.className = "seat";
         btn.title = SeatApp.seatLabel(layout, r, c);
         const pos = `<span class="pos">${SeatApp.seatShortLabel(layout, r, c)}</span>`;
-        if (taken.has(SeatApp.key(r, c))) {
+        const blocked = blockReason(r, c);
+        if (blocked) {
           btn.classList.add("taken");
           btn.disabled = true;
-          btn.innerHTML = `<span class="rank">決定済</span>${pos}`;
-        } else if (choice && choice.row === r && choice.col === c) {
+          btn.innerHTML = `<span class="rank">${blocked}</span>${pos}`;
+        } else if (same(choice, r, c)) {
           btn.classList.add("rank1");
-          btn.innerHTML = `<span class="rank">希望</span>${pos}`;
+          btn.innerHTML = `<span class="rank">${second ? "第1希望" : "希望"}</span>${pos}`;
+        } else if (same(choice2, r, c)) {
+          btn.classList.add("rank2");
+          btn.innerHTML = `<span class="rank">第2希望</span>${pos}`;
         } else {
-          btn.innerHTML = pos;
+          if (hot.has(SeatApp.key(r, c))) btn.classList.add("hot");
+          btn.innerHTML = (hot.has(SeatApp.key(r, c)) ? '<span class="hot-mark">人気</span>' : "") + pos;
         }
         btn.addEventListener("click", () => {
-          choice = { row: r, col: c };
+          const seat = { row: r, col: c };
+          if (currentRank() === 2) {
+            if (same(choice, r, c)) choice = null;
+            choice2 = seat;
+          } else {
+            if (same(choice2, r, c)) choice2 = null;
+            choice = seat;
+            // 第1希望を選んだら、続けて第2希望を選べるように切り替える
+            if (second && !choice2) document.querySelector('input[name="rank"][value="2"]').checked = true;
+          }
           showMessage("");
           render();
         });
         grid.appendChild(btn);
       }
     }
-    choiceEl.innerHTML = '<span class="badge r1">希望</span>' +
-      (choice ? SeatApp.seatLabel(layout, choice.row, choice.col) : '<span class="muted">未選択</span>');
+    const text = s => s ? SeatApp.seatLabel(layout, s.row, s.col) : '<span class="muted">未選択</span>';
+    choiceEl.innerHTML = `<span class="badge r1">${second ? "第1希望" : "希望"}</span>${text(choice)}` +
+      (second ? `<br><span class="badge r2">第2希望</span>${text(choice2)}` : "");
   }
 
   function buildData() {
-    const number = Number(document.getElementById("number").value);
+    const number = Number(numberInput.value);
     const name = document.getElementById("name").value.trim();
     if (!Number.isInteger(number) || number < 1) {
       showMessage("出席番号を入力してください。", "error");
@@ -124,11 +181,11 @@
       return null;
     }
     if (!choice) {
-      showMessage("希望の席を1つ選んでください。", "error");
+      showMessage(second ? "第1希望の席を選んでください。" : "希望の席を1つ選んでください。", "error");
       return null;
     }
 
-    return {
+    const data = {
       app: SeatApp.APP_ID,
       version: SeatApp.VERSION,
       round,
@@ -140,6 +197,8 @@
       choice: { row: choice.row, col: choice.col },
       submittedAt: new Date().toISOString(),
     };
+    if (second && choice2) data.choice2 = { row: choice2.row, col: choice2.col };
+    return data;
   }
 
   function download(data) {
@@ -162,7 +221,8 @@
     showMessage("送信中です…");
     try {
       await SeatApp.postToApi(api, data);
-      showMessage(`提出しました（${SeatApp.seatLabel(layout, data.choice.row, data.choice.col)}）。`, "ok");
+      showMessage(`提出しました（${SeatApp.seatLabel(layout, data.choice.row, data.choice.col)}` +
+        (data.choice2 ? `、第2希望 ${SeatApp.seatLabel(layout, data.choice2.row, data.choice2.col)}` : "") + "）。", "ok");
     } catch (e) {
       showMessage("送信できませんでした。少し待ってからもう一度押すか、下のボタンでファイルを保存して先生に渡してください。", "error");
       downloadBtn.hidden = false;
@@ -175,6 +235,8 @@
     const data = buildData();
     if (data) download(data);
   });
+
+  numberInput.addEventListener("input", () => { if (prev.size) render(); });
 
   render();
 })();

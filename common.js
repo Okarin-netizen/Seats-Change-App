@@ -50,15 +50,45 @@ const SeatApp = {
   },
 
   // 生徒用リンクの ?round=2&taken=1-3,2-4&api=... （何回目の調査か・決定済みの席・提出先）
+  // second=1：第2希望も集める / hot：前回かぶった席 / prev=5:1-3,6:2-4：出席番号ごとの前回の席
+  // maxrow=2&num=5：配慮が必要な生徒の専用リンク（前から2列目までの席だけ選べる）
   surveyFromUrl() {
     const params = new URLSearchParams(location.search);
     const round = parseInt(params.get("round"), 10);
+    const maxRow = parseInt(params.get("maxrow"), 10);
+    const num = parseInt(params.get("num"), 10);
     const api = params.get("api") || "";
+    const prev = new Map();
+    for (const item of String(params.get("prev") || "").split(",")) {
+      const m = item.match(/^(\d+):(\d+)-(\d+)$/);
+      if (m) prev.set(Number(m[1]), this.key(Number(m[2]), Number(m[3])));
+    }
     return {
       round: Number.isInteger(round) && round >= 1 ? round : 1,
-      taken: new Set(this.parseSeatList(params.get("taken")).map(s => this.key(s.row, s.col))),
+      taken: this.seatKeySet(params.get("taken")),
+      hot: this.seatKeySet(params.get("hot")),
+      second: params.get("second") === "1",
+      prev,
+      maxRow: Number.isInteger(maxRow) && maxRow >= 1 ? maxRow : 0,
+      number: Number.isInteger(num) && num >= 1 ? num : 0,
       api: this.isApiUrl(api) ? api : "",
     };
+  },
+
+  seatKeySet(text) {
+    return new Set(this.parseSeatList(text).map(s => this.key(s.row, s.col)));
+  },
+
+  // 左右（通路をはさまない）か前後で隣り合っているか
+  isNeighbor(a, b) {
+    if (a.row === b.row) return Math.abs(a.col - b.col) === 1;
+    if (a.col === b.col) return Math.abs(a.row - b.row) === 1;
+    return false;
+  },
+
+  // 名簿と照らし合わせるときは空白（全角も）を無視する
+  normalizeName(name) {
+    return String(name || "").replace(/[\s\u3000]/g, "");
   },
 
   // 提出先は Google Apps Script のウェブアプリだけを受け付ける
