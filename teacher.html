@@ -55,7 +55,7 @@
       </label>
       <button type="button" id="saveApi">保存して接続を確かめる</button>
     </div>
-    <div class="message" id="apiMessage"></div>
+    <div class="message" id="apiMessage" role="status"></div>
   </details>
 
   <details class="card" id="rosterCard">
@@ -66,7 +66,7 @@
     <div class="form-row mt">
       <button type="button" id="saveRoster">名簿を保存</button>
     </div>
-    <div class="message" id="rosterMessage"></div>
+    <div class="message" id="rosterMessage" role="status"></div>
 
     <h3 class="sub">配慮の条件</h3>
     <p class="muted">条件は先生だけが見られます。「前の席」の条件がある生徒には、その生徒の<strong>専用リンク</strong>を配ってください（条件に合う席だけ選べます）。条件に合わない提出は「選べない席」になり、離したい2人が隣（または前後）になりそうなときは注意が出ます。</p>
@@ -88,7 +88,7 @@
       </label>
       <button type="button" id="addApart">この2人を離す</button>
     </div>
-    <div class="message" id="ruleMessage"></div>
+    <div class="message" id="ruleMessage" role="status"></div>
     <div class="table-wrap mt">
       <table>
         <thead>
@@ -107,7 +107,7 @@
       <button type="button" id="copyLink">コピー</button>
       <a id="openStudent" href="student.html" target="_blank">生徒用を開く</a>
     </div>
-    <div class="message" id="copyMessage"></div>
+    <div class="message" id="copyMessage" role="status"></div>
     <h3 class="sub">調査の設定</h3>
     <label class="check"><input type="checkbox" id="optSecond"> 第2希望も集める（第1希望がかぶった人は、空いていれば第2希望の席に決まります）</label>
     <label class="check"><input type="checkbox" id="optAvoidPrev"> 前回と同じ席を選べなくする <span class="muted" id="prevState"></span></label>
@@ -125,7 +125,7 @@
       <p>生徒から集めた JSON ファイルをここにドラッグ＆ドロップ<br>（複数まとめて可）</p>
       <input type="file" id="fileInput" accept=".json,application/json" multiple>
     </div>
-    <div class="message" id="message"></div>
+    <div class="message" id="message" role="status"></div>
     <p class="muted">同じ出席番号のファイルが複数あるときは、提出日時が新しいほうを使います。</p>
   </details>
 
@@ -133,7 +133,13 @@
     <summary><h2>4. 今回の結果 <span class="muted" id="count"></span></h2></summary>
     <p class="remain" id="remain"></p>
     <p class="muted" id="unsubmitted"></p>
-    <p class="muted">ほかの人と希望がかぶっていない人は「決定」、かぶった人は「かぶり」になります。</p>
+    <p class="muted">ほかの人と希望がかぶっていない人は「決定」、かぶった人は「かぶり」になります。表の行にカーソルを置くと、座席表のその席が光ります。</p>
+    <div class="filter-bar" id="resultFilter" role="group" aria-label="表示する結果">
+      <button type="button" class="chip" data-filter="all" aria-pressed="true">すべて <span class="chip-count"></span></button>
+      <button type="button" class="chip" data-filter="clash" aria-pressed="false">かぶり <span class="chip-count"></span></button>
+      <button type="button" class="chip" data-filter="ok" aria-pressed="false">決定 <span class="chip-count"></span></button>
+      <button type="button" class="chip" data-filter="other" aria-pressed="false">その他 <span class="chip-count"></span></button>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -160,9 +166,14 @@
           <option value="teacher">教卓から見た向き（教卓が下）</option>
         </select>
       </label>
+      <label>発表の順番
+        <select id="presentOrder">
+          <option value="number">出席番号順</option>
+          <option value="random">ランダム順</option>
+        </select>
+      </label>
+      <button type="button" class="primary" id="presentStart">発表モード</button>
       <button type="button" id="print">座席表を印刷</button>
-      <button type="button" id="presentNumber">発表モード（出席番号順）</button>
-      <button type="button" id="presentRandom">発表モード（ランダム順）</button>
     </div>
     <label class="check">
       <input type="checkbox" id="assignMode">
@@ -198,7 +209,7 @@
     </div>
     <div class="form-row mt">
       <button type="button" id="csv">CSVで保存</button>
-      <button type="button" id="restart">最初からやり直す</button>
+      <button type="button" class="danger push-right" id="restart">最初からやり直す</button>
     </div>
   </details>
 
@@ -212,7 +223,7 @@
       <input type="file" id="progressFile" accept=".json,application/json" hidden>
     </div>
     <p class="muted">「前回の席として読み込む」は、前の席替えで書き出したファイルの決定済みの席を「前回の席」にします（「前回と同じ席を選べなくする」で使います）。</p>
-    <div class="message" id="saveMessage"></div>
+    <div class="message" id="saveMessage" role="status"></div>
   </details>
 </main>
 
@@ -222,6 +233,19 @@
 </div>
 
 <div class="print-area" id="printArea"></div>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlgTitle">
+  <form method="dialog" id="dlgForm">
+    <h2 id="dlgTitle"></h2>
+    <p class="dlg-text" id="dlgText"></p>
+    <div id="dlgFields"></div>
+    <p class="field-error" id="dlgError" role="alert" hidden></p>
+    <div class="dlg-actions">
+      <button type="submit" value="cancel" id="dlgCancel" formnovalidate>やめる</button>
+      <button type="submit" value="ok" class="primary" id="dlgOk">OK</button>
+    </div>
+  </form>
+</dialog>
 
 <div class="present" id="present" hidden>
   <div class="present-head">
@@ -395,6 +419,57 @@
     document.getElementById(topId).hidden = flipped;
     document.getElementById(bottomId).hidden = !flipped;
   }
+
+  // ---- ページ内の入力窓（ブラウザ標準の prompt / confirm / alert の代わり） ----
+  const dlg = document.getElementById("dlg");
+  const dlgForm = document.getElementById("dlgForm");
+  let dlgState = null; // { resolve, validate }
+
+  // opts: title, text, fields（HTML）, ok, cancel, danger, validate（form → {error} か 返す値）
+  // OK なら validate の返す値（validate がなければ true）、やめたら null を返す
+  function openDialog(opts) {
+    if (dlgState) dlgState.resolve(null);
+    document.getElementById("dlgTitle").textContent = opts.title || "";
+    const text = document.getElementById("dlgText");
+    text.textContent = opts.text || "";
+    text.hidden = !opts.text;
+    document.getElementById("dlgFields").innerHTML = opts.fields || "";
+    document.getElementById("dlgError").hidden = true;
+    const ok = document.getElementById("dlgOk");
+    ok.textContent = opts.ok || "OK";
+    ok.className = opts.danger ? "danger-fill" : "primary";
+    document.getElementById("dlgCancel").textContent = opts.cancel || "やめる";
+    return new Promise(resolve => {
+      dlgState = { resolve, validate: opts.validate };
+      dlg.showModal();
+      const first = dlg.querySelector("#dlgFields input, #dlgFields select");
+      (first || ok).focus();
+      if (opts.onOpen) opts.onOpen();
+    });
+  }
+  function closeDialog(value) {
+    const state = dlgState;
+    dlgState = null;
+    if (dlg.open) dlg.close();
+    if (state) state.resolve(value);
+  }
+  dlgForm.addEventListener("submit", e => {
+    e.preventDefault();
+    if (!dlgState) return;
+    if (!e.submitter || e.submitter.value !== "ok") { closeDialog(null); return; }
+    const result = dlgState.validate ? dlgState.validate(dlgForm) : true;
+    if (result && result.error) {
+      const err = document.getElementById("dlgError");
+      err.textContent = result.error;
+      err.hidden = false;
+      return;
+    }
+    closeDialog(result);
+  });
+  dlg.addEventListener("cancel", e => { e.preventDefault(); closeDialog(null); });
+
+  const askConfirm = (title, text, ok, opts) =>
+    openDialog(Object.assign({ title, text, ok }, opts || {})).then(v => v === true);
 
   // ---- 元に戻す ----
   const undoStack = [];
@@ -846,19 +921,52 @@
   const assignMode = document.getElementById("assignMode");
   let moving = null; // 席を移動中の決定済みエントリ
 
-  function assign(row, col) {
-    const numText = prompt(`${SeatApp.seatLabel(layout, row, col)} に配置する生徒の出席番号`);
-    if (numText === null) return;
-    const number = parseInt(numText, 10);
-    if (!Number.isInteger(number) || number < 1) { alert("出席番号を数字で入れてください。"); return; }
-    const already = progress.confirmed.find(c => c.number === number);
-    if (already) {
-      alert(`${number}番はすでに ${seatText(already.row, already.col)} に決まっています。先にそちらを取り消してください。`);
-      return;
-    }
-    const known = submissions.get(number);
-    const name = (prompt(`${number}番の名前`, rosterName(number) || (known ? known.name : "")) || "").trim();
-    if (!name) return;
+  // 名簿があれば「まだ席が決まっていない生徒」から選ぶだけ。なければ出席番号と名前を入れる
+  async function assign(row, col) {
+    const done = confirmedNumbers();
+    const waiting = progress.roster.filter(r => !done.has(r.number));
+    const pick = waiting.length
+      ? `<label>名簿から選ぶ
+          <select id="dlgPick">
+            ${waiting.map(r => `<option value="${r.number}">${r.number} ${escapeHtml(r.name)}</option>`).join("")}
+            <option value="">名簿にない生徒（下に入れる）</option>
+          </select>
+        </label>` : "";
+    const result = await openDialog({
+      title: "先生が生徒を配置する",
+      text: `${SeatApp.seatLabel(layout, row, col)} に配置します。`,
+      fields: pick +
+        `<div class="form-row mt" id="dlgManual"${waiting.length ? " hidden" : ""}>
+          <label>出席番号 <input type="number" id="dlgNumber" min="1" inputmode="numeric"></label>
+          <label>名前 <input type="text" id="dlgName" maxlength="50"></label>
+        </div>`,
+      ok: "配置する",
+      onOpen() {
+        const sel = document.getElementById("dlgPick");
+        if (!sel) return;
+        sel.addEventListener("change", () => {
+          document.getElementById("dlgManual").hidden = sel.value !== "";
+          if (sel.value === "") document.getElementById("dlgNumber").focus();
+        });
+      },
+      validate() {
+        const sel = document.getElementById("dlgPick");
+        if (sel && sel.value !== "") {
+          const number = Number(sel.value);
+          return { number, name: rosterName(number) };
+        }
+        const number = parseInt(document.getElementById("dlgNumber").value, 10);
+        if (!Number.isInteger(number) || number < 1) return { error: "出席番号を数字で入れてください。" };
+        const already = progress.confirmed.find(c => c.number === number);
+        if (already) return { error: `${number}番はすでに ${seatText(already.row, already.col)} に決まっています。先にそちらを取り消してください。` };
+        const known = submissions.get(number);
+        const name = document.getElementById("dlgName").value.trim() || rosterName(number) || (known ? known.name : "");
+        if (!name) return { error: "名前を入れてください。" };
+        return { number, name };
+      },
+    });
+    if (!result) return;
+    const { number, name } = result;
     remember("先生が配置");
     progress.confirmed.push({ number, name, row, col, round: 0, via: "" });
     // 今回の提出はもう使わない
@@ -866,8 +974,8 @@
     changed();
   }
 
+  // 「元に戻す」で戻せるので、確認は出さない
   function unassign(c) {
-    if (!confirm(`${c.number}番 ${c.name}（${seatText(c.row, c.col)}・${decidedText(c)}）を取り消して、席を空けますか？`)) return;
     remember("席の取り消し");
     progress.confirmed = progress.confirmed.filter(x => x !== c);
     if (moving === c) moving = null;
@@ -887,7 +995,6 @@
     const c = moving;
     moving = null;
     if (other === c) { render(); return; }
-    if (other && !confirm(`${c.number}番 ${c.name} と ${other.number}番 ${other.name} の席を入れ替えますか？`)) { render(); return; }
     remember("席の移動");
     if (other) [other.row, other.col] = [c.row, c.col];
     c.row = row;
@@ -895,6 +1002,7 @@
     changed();
   }
 
+  // 結果は色だけでなく文字のバッジで表す
   function statusText(r) {
     let label;
     if (r.status === "ok") label = r.via === "第1希望" ? "決定" : `決定（${r.via}）`;
@@ -902,7 +1010,29 @@
     else if (r.status === "lost") label = "くじで外れ";
     else label = `選べない席（${r.reason}）`;
     const note = r.status !== "ok" && r.note ? `<br><span class="muted">${r.note}</span>` : "";
-    return `<span class="status ${r.status}">${label}</span>${note}`;
+    return `<span class="badge st-${r.status}">${label}</span>${note}`;
+  }
+
+  // ---- 4. 結果の絞り込み ----
+  let resultFilter = "all";
+  const filterOf = r => r.status === "ok" ? "ok" : r.status === "clash" ? "clash" : "other";
+  // かぶった人を先に、同じ席どうしをまとめて並べる。ほかは出席番号順
+  function sortResults(list) {
+    const clashFirst = r => r.status === "clash" ? 0 : 1;
+    return [...list].sort((a, b) => clashFirst(a) - clashFirst(b) ||
+      (clashFirst(a) === 0 ? (a.row - b.row || a.col - b.col) : 0) || a.number - b.number);
+  }
+  document.getElementById("resultFilter").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-filter]");
+    if (!btn) return;
+    resultFilter = btn.dataset.filter;
+    render();
+  });
+
+  // 表の行と座席表の席をつなぐ
+  function highlightSeat(key, on) {
+    const cell = key && document.querySelector(`#grid .seat[data-key="${key}"]`);
+    if (cell) cell.classList.toggle("flash", on);
   }
 
   // 名簿と番号・名前が合っているか
@@ -942,11 +1072,22 @@
       `（提出 ${results.length}人・決定 ${decided.length}人・まだ決まらない ${pending}人）`;
     renderRemain(decided);
 
+    const counts = { all: results.length, clash: 0, ok: 0, other: 0 };
+    for (const r of results) counts[filterOf(r)]++;
+    for (const btn of document.querySelectorAll("#resultFilter button")) {
+      btn.setAttribute("aria-pressed", String(btn.dataset.filter === resultFilter));
+      btn.querySelector(".chip-count").textContent = counts[btn.dataset.filter];
+    }
+    const shown = sortResults(results.filter(r => resultFilter === "all" || filterOf(r) === resultFilter));
+
     const tbody = document.getElementById("tbody");
-    tbody.innerHTML = results.length ? "" :
-      '<tr><td colspan="5" class="muted">まだ読み込まれていません</td></tr>';
-    for (const r of results) {
+    tbody.innerHTML = shown.length ? "" : `<tr><td colspan="5" class="muted">${results.length ? "この条件に当てはまる人はいません" : "まだ読み込まれていません"}</td></tr>`;
+    for (const r of shown) {
       const tr = document.createElement("tr");
+      const seat = r.seat || r;
+      const key = SeatApp.key(seat.row, seat.col);
+      tr.addEventListener("mouseenter", () => highlightSeat(key, true));
+      tr.addEventListener("mouseleave", () => highlightSeat(key, false));
       const check = nameCheck(r);
       tr.innerHTML = `<td>${r.number}</td>` +
         `<td>${escapeHtml(r.name)}${check ? `<br><span class="warn">要確認：${escapeHtml(check)}</span>` : ""}</td>` +
@@ -955,6 +1096,7 @@
       tbody.appendChild(tr);
     }
     document.getElementById("nextRound").disabled = decided.length === 0;
+    document.getElementById("presentStart").disabled = progress.confirmed.length === 0;
     const clashCount = evaluate().clashGroups.length;
     document.getElementById("drawLots").disabled = clashCount === 0;
     document.getElementById("drawLots").textContent = clashCount
@@ -979,6 +1121,7 @@
       const div = document.createElement("div");
       const k = SeatApp.key(r, c);
       div.className = "seat";
+      div.dataset.key = k;
       div.title = SeatApp.seatLabel(layout, r, c);
       let body = "";
       const fixed = confirmedBySeat.get(k);
@@ -989,11 +1132,14 @@
         body = `<span>${fixed.number} ${escapeHtml(fixed.name)}</span><span class="muted">${decidedText(fixed)}</span>`;
       } else if (now) {
         div.classList.add("ok");
-        body = `<span class="n-ok">${now.number} ${escapeHtml(now.name)}</span>` +
+        body = '<span class="tag tag-ok">今回決定</span>' +
+          `<span class="n-ok">${now.number} ${escapeHtml(now.name)}</span>` +
           (now.via !== "第1希望" ? `<span class="muted">${now.via}</span>` : "");
       } else if (wanted.filter(w => w.status !== "ok").length > 1) {
+        const rivals = wanted.filter(w => w.status !== "ok");
         div.classList.add("hot");
-        body = wanted.filter(w => w.status !== "ok").map(w => `<span class="n1">${w.number} ${escapeHtml(w.name)}</span>`).join("");
+        body = `<span class="tag tag-clash">かぶり ${rivals.length}人</span>` +
+          rivals.map(w => `<span class="n1">${w.number} ${escapeHtml(w.name)}</span>`).join("");
       }
       div.innerHTML = `<div class="pos">${SeatApp.seatShortLabel(layout, r, c)}</div><div class="names">${body}</div>`;
       if (moving) {
@@ -1037,15 +1183,16 @@
   }
 
   // ---- 次の回へ ----
-  document.getElementById("nextRound").addEventListener("click", () => {
+  document.getElementById("nextRound").addEventListener("click", async () => {
     const { results, decided, clashGroups } = evaluate();
     const rest = results.length - decided.length;
     const warnings = ruleWarnings([...progress.confirmed,
       ...decided.map(r => ({ number: r.number, row: r.seat.row, col: r.seat.col }))]);
-    if (!confirm(`${decided.length}人の席を決定して、第${progress.round + 1}回の調査に進みます。` +
+    if (!await askConfirm("決定して次の調査へ進む",
+      `${decided.length}人の席を決定して、第${progress.round + 1}回の調査に進みます。` +
       (rest ? `\n席が決まらなかった ${rest}人は、次の回でもう一度選びます。` : "") +
       (warnings.length ? "\n\n配慮の条件の注意：\n" + warnings.join("\n") : "") +
-      "\n\n今回読み込んだ提出の一覧は消えます（「元に戻す」で戻せます）。よろしいですか？")) return;
+      "\n\n今回読み込んだ提出の一覧は消えます（「元に戻す」で戻せます）。", "決定して進む")) return;
     remember("決定して次の調査へ");
     for (const r of decided) {
       progress.confirmed.push({ number: r.number, name: r.name, row: r.seat.row, col: r.seat.col, round: progress.round, via: r.via });
@@ -1061,10 +1208,13 @@
     document.getElementById("stepLink").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  document.getElementById("restart").addEventListener("click", () => {
-    if (!confirm("決定済みの席と読み込んだ提出をすべて消して、第1回からやり直しますか？\n（名簿・配慮の条件・設定は残ります）")) return;
-    const keepPrev = progress.confirmed.length > 0 &&
-      confirm(`今の座席（${progress.confirmed.length}人分）を「前回の席」として残しますか？\n残すと、次の席替えで「前回と同じ席を選べなくする」が使えます。`);
+  document.getElementById("restart").addEventListener("click", async () => {
+    if (!await askConfirm("最初からやり直す",
+      "決定済みの席と読み込んだ提出をすべて消して、第1回からやり直します。\n（名簿・配慮の条件・設定は残ります）",
+      "すべて消してやり直す", { danger: true })) return;
+    const keepPrev = progress.confirmed.length > 0 && await askConfirm("今の座席を残しますか？",
+      `今の座席（${progress.confirmed.length}人分）を「前回の席」として残しますか？\n残すと、次の席替えで「前回と同じ席を選べなくする」が使えます。`,
+      "前回の席として残す", { cancel: "残さない" });
     remember("最初からやり直す");
     if (keepPrev) progress.previous = progress.confirmed.map(c => ({ number: c.number, row: c.row, col: c.col }));
     progress.round = 1;
@@ -1099,9 +1249,10 @@
   }
 
   // ---- 印刷 ----
-  function printChart() {
+  async function printChart() {
     const pendingCount = evaluate().decided.length;
-    if (pendingCount && !confirm(`今回「決定」の${pendingCount}人は、まだ確定していないので印刷に入りません。決定済みの席だけで印刷しますか？`)) return;
+    if (pendingCount && !await askConfirm("座席表を印刷",
+      `今回「決定」の${pendingCount}人は、まだ確定していないので印刷に入りません。決定済みの席だけで印刷しますか？`, "印刷する")) return;
     const area = document.getElementById("printArea");
     const today = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" });
     area.innerHTML = `<h1>座席表</h1><p class="muted">${today}・${flip ? "教卓から見た向き" : "生徒から見た向き"}</p>` +
@@ -1125,7 +1276,7 @@
   let presentIndex = 0; // 発表し終えた人数
 
   function openPresent(random) {
-    if (!progress.confirmed.length) { alert("決定済みの席がまだありません。"); return; }
+    if (!progress.confirmed.length) return;
     presentOrder = [...progress.confirmed].sort((a, b) => a.number - b.number);
     if (random) {
       for (let i = presentOrder.length - 1; i > 0; i--) {
@@ -1218,7 +1369,9 @@
       SeatApp.showMessage(saveMessage, `${progress.previous.length}人分の席を「前回の席」にしました。「2. 生徒用リンクを配る」の「前回と同じ席を選べなくする」で使えます。`, "ok");
       return;
     }
-    if (!confirm(`第${loaded.round}回・決定済み${loaded.confirmed.length}人の進み具合を読み込みます。いまの進み具合と今回の提出は置きかわります。よろしいですか？`)) return;
+    if (!await askConfirm("進み具合を読み込む",
+      `第${loaded.round}回・決定済み${loaded.confirmed.length}人の進み具合を読み込みます。いまの進み具合と今回の提出は置きかわります（「元に戻す」で戻せます）。`,
+      "読み込む")) return;
     remember("進み具合の読み込み");
     layout = SeatApp.makeLayout(data.layout.rows, data.layout.cols, data.layout.off);
     rowsInput.value = layout.rows;
@@ -1321,8 +1474,8 @@
     render();
   });
   document.getElementById("print").addEventListener("click", printChart);
-  document.getElementById("presentNumber").addEventListener("click", () => openPresent(false));
-  document.getElementById("presentRandom").addEventListener("click", () => openPresent(true));
+  document.getElementById("presentStart").addEventListener("click", () =>
+    openPresent(document.getElementById("presentOrder").value === "random"));
   document.getElementById("presentClose").addEventListener("click", closePresent);
   document.getElementById("presentNext").addEventListener("click", () => stepPresent(1));
   document.getElementById("presentPrev").addEventListener("click", () => stepPresent(-1));
@@ -1348,6 +1501,7 @@
       else if (e.key === "Escape") { e.preventDefault(); closePresent(); }
       return;
     }
+    if (dlg.open) return;
     // 入力欄の中では、ブラウザのふつうの「元に戻す」を使う
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z" && !typing) {
