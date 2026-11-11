@@ -12,6 +12,9 @@
 
 * { box-sizing: border-box; }
 
+/* hidden 属性を .form-row などの display 指定より優先する */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
@@ -249,7 +252,6 @@ label.check { flex-direction: row; align-items: center; gap: 8px; margin-bottom:
   background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
   padding: 8px 12px; margin-bottom: 12px; font-weight: bold;
 }
-.move-banner[hidden] { display: none; }
 .seat-grid.teacher .seat.moving { outline: 3px solid var(--accent); }
 td.actions { white-space: nowrap; }
 button.small { font-size: 0.85rem; padding: 2px 8px; margin-right: 4px; }
@@ -282,14 +284,12 @@ select { font-size: 1rem; padding: 6px 8px; border: 1px solid var(--border); bor
   background: var(--card); border: 1px solid var(--border); border-radius: 8px;
   padding: 8px 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); font-size: 0.9rem;
 }
-.undo-bar[hidden] { display: none; }
 
 /* 発表モード */
 .present {
   position: fixed; inset: 0; z-index: 20; overflow: auto;
   background: #fff; padding: 16px 24px;
 }
-.present[hidden] { display: none; }
 body.presenting { overflow: hidden; }
 .present-head { display: flex; gap: 16px; align-items: center; justify-content: space-between; font-weight: bold; }
 .present-caption { text-align: center; font-size: 2rem; font-weight: bold; margin: 12px 0; min-height: 3rem; }
@@ -316,3 +316,43 @@ body.presenting { overflow: hidden; }
   .print-area h1 { margin: 0 0 4px; }
 }
 .front.mt { margin-top: 12px; }
+
+/* 生徒用：入力もれ（その欄のすぐ下に出す） */
+.field-error { color: var(--r1); font-size: 0.85rem; font-weight: bold; margin: 4px 0 0; }
+input[aria-invalid="true"] { border-color: var(--r1); }
+
+/* 生徒用：画面の下に固定する「今の選択」と「提出する」 */
+.submit-bar {
+  position: sticky; bottom: 0; z-index: 5;
+  margin: 0 -16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+.submit-bar-inner { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.submit-bar .choice { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.submit-bar .choice-item { white-space: nowrap; }
+.submit-bar .choice-empty { color: var(--muted); font-weight: bold; }
+.submit-actions { display: flex; gap: 8px; margin-left: auto; }
+.submit-bar button.primary { font-size: 1.1rem; padding: 10px 28px; }
+.submit-bar .message:empty { display: none; }
+
+/* 生徒用：提出しました */
+.done { text-align: center; padding: 32px 16px; border: 2px solid #047857; }
+.done-mark {
+  width: 72px; height: 72px; margin: 0 auto 8px; border-radius: 50%;
+  background: #047857; color: #fff; font-size: 2.6rem; line-height: 72px; font-weight: bold;
+}
+.done-title { font-size: 1.6rem; margin: 0 0 8px; color: #047857; }
+.done-lead { margin: 0 auto 16px; max-width: 34em; }
+.done.saved { border-color: #b45309; }
+.done.saved .done-mark { background: #b45309; }
+.done.saved .done-title { color: #b45309; }
+.done.saved .done-lead { font-weight: bold; }
+.done-list {
+  display: grid; grid-template-columns: auto auto; gap: 6px 16px;
+  justify-content: center; text-align: left; margin: 0 auto 20px; font-size: 1.05rem;
+}
+.done-list dt { color: var(--muted); }
+.done-list dd { margin: 0; font-weight: bold; }
