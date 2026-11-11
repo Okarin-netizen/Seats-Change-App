@@ -7,11 +7,24 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<nav class="status-bar" id="statusBar" aria-label="今の状況">
+  <div class="status-bar-inner">
+    <span class="status-now" id="statusNow" role="status"></span>
+    <span class="status-links">
+      <a href="#stepLayout">配置</a>
+      <a href="#stepLink">リンク</a>
+      <a href="#stepLoad">読み込み</a>
+      <a href="#stepResult">結果</a>
+      <a href="#stepChart">座席表</a>
+      <a href="#stepConfirmed">決定済み</a>
+    </span>
+  </div>
+</nav>
 <main>
   <h1>席替えアンケート 集計（教員用）</h1>
 
-  <section class="card">
-    <h2>1. 座席の配置を決める</h2>
+  <details class="card step" id="stepLayout" open>
+    <summary><h2>1. 座席の配置を決める <span class="muted step-note" id="layoutNote"></span></h2></summary>
     <p class="muted">列数と人数を決めたら、通路や空きにしたいマスをクリックしてください（もう一度クリックで席に戻ります）。配置はこのブラウザに保存されます。</p>
     <p class="message error" id="layoutLocked" hidden>決定済みの席があるため、配置は変更できません。変えたいときは下の「最初からやり直す」を押してください。</p>
     <div class="form-row">
@@ -28,7 +41,7 @@
       <div class="seat-grid editor" id="editor"></div>
     </div>
     <p class="muted" id="seatCount"></p>
-  </section>
+  </details>
 
   <details class="card" id="apiCard">
     <summary><strong>Google スプレッドシートで提出を受け取る（設定）</strong> <span class="muted" id="apiState"></span></summary>
@@ -86,8 +99,8 @@
     </div>
   </details>
 
-  <section class="card">
-    <h2>2. 生徒用リンクを配る <span class="round-label" id="roundTitle"></span></h2>
+  <details class="card step" id="stepLink" open>
+    <summary><h2>2. 生徒用リンクを配る <span class="round-label" id="roundTitle"></span></h2></summary>
     <p class="muted" id="linkNote"></p>
     <div class="form-row">
       <input type="text" id="studentLink" readonly class="link-box">
@@ -100,10 +113,10 @@
     <label class="check"><input type="checkbox" id="optAvoidPrev"> 前回と同じ席を選べなくする <span class="muted" id="prevState"></span></label>
     <label class="check"><input type="checkbox" id="optShowHot"> 前回かぶった席を「人気」として生徒に見せる（名前は出ません）</label>
     <p class="muted">設定を変えたら、リンクを配り直してください。</p>
-  </section>
+  </details>
 
-  <section class="card">
-    <h2>3. 提出を読み込む</h2>
+  <details class="card step" id="stepLoad" open>
+    <summary><h2>3. 提出を読み込む</h2></summary>
     <div class="form-row mb" id="apiLoadRow" hidden>
       <button type="button" class="primary" id="loadApi">スプレッドシートから読み込む</button>
       <span class="muted">今回（第<span id="loadRound"></span>回）の提出をすべて読み込みます。何度押しても大丈夫です。</span>
@@ -114,10 +127,10 @@
     </div>
     <div class="message" id="message"></div>
     <p class="muted">同じ出席番号のファイルが複数あるときは、提出日時が新しいほうを使います。</p>
-  </section>
+  </details>
 
-  <section class="card">
-    <h2>4. 今回の結果 <span class="muted" id="count"></span></h2>
+  <details class="card step" id="stepResult" open>
+    <summary><h2>4. 今回の結果 <span class="muted" id="count"></span></h2></summary>
     <p class="remain" id="remain"></p>
     <p class="muted" id="unsubmitted"></p>
     <p class="muted">ほかの人と希望がかぶっていない人は「決定」、かぶった人は「かぶり」になります。</p>
@@ -136,10 +149,10 @@
     </div>
     <p class="muted" id="lotteryInfo"></p>
     <p class="muted">「決定して次の調査へ進む」を押すと「決定」の人の席が確定し、その席を選べなくした次の回の生徒用リンクが出ます。席が決まっていない人に配ってください。</p>
-  </section>
+  </details>
 
-  <section class="card">
-    <h2>5. 座席表</h2>
+  <details class="card step" id="stepChart" open>
+    <summary><h2>5. 座席表</h2></summary>
     <div class="form-row mb">
       <label>向き
         <select id="viewSelect">
@@ -171,10 +184,10 @@
     </div>
     <div class="front mt" id="frontBottom" hidden>教卓（前）</div>
     <p class="muted" id="summary"></p>
-  </section>
+  </details>
 
-  <section class="card">
-    <h2>6. 決定済みの席 <span class="muted" id="confirmedCount"></span></h2>
+  <details class="card step" id="stepConfirmed" open>
+    <summary><h2>6. 決定済みの席 <span class="muted" id="confirmedCount"></span></h2></summary>
     <div class="table-wrap">
       <table>
         <thead>
@@ -187,10 +200,10 @@
       <button type="button" id="csv">CSVで保存</button>
       <button type="button" id="restart">最初からやり直す</button>
     </div>
-  </section>
+  </details>
 
-  <section class="card">
-    <h2>7. 保存と引き継ぎ</h2>
+  <details class="card step" id="stepSave">
+    <summary><h2>7. 保存と引き継ぎ</h2></summary>
     <p class="muted">進み具合（配置・何回目か・決定済みの席・名簿・条件）はこのブラウザに保存されています。別のパソコンで続けるときや、念のための控えには、ファイルに書き出してください。</p>
     <div class="form-row">
       <button type="button" id="exportProgress">進み具合を書き出す</button>
@@ -200,7 +213,7 @@
     </div>
     <p class="muted">「前回の席として読み込む」は、前の席替えで書き出したファイルの決定済みの席を「前回の席」にします（「前回と同じ席を選べなくする」で使います）。</p>
     <div class="message" id="saveMessage"></div>
-  </section>
+  </details>
 </main>
 
 <div class="undo-bar" id="undoBar" hidden>
@@ -427,10 +440,49 @@
     btn.textContent = last ? `元に戻す（${last.label}）` : "元に戻す";
   }
 
+  // ---- 手順のカード（たためる）と、上に固定した「今の状況」 ----
+  const stepLayout = document.getElementById("stepLayout");
+  let layoutTouched = false; // 先生が自分で「1. 座席の配置」を開け閉めしたら、自動でたたまない
+
+  function openStep(el) {
+    const step = el && el.closest("details");
+    if (!step) return;
+    step.open = true;
+    if (step === stepLayout) layoutTouched = true;
+  }
+  stepLayout.querySelector("summary").addEventListener("click", () => { layoutTouched = true; });
+  document.querySelector("#statusBar .status-links").addEventListener("click", e => {
+    const a = e.target.closest("a[href^='#']");
+    if (a) openStep(document.querySelector(a.getAttribute("href")));
+  });
+
+  // 状況バーの高さぶん、リンクや scrollIntoView の止まる位置を下げる
+  const statusBar = document.getElementById("statusBar");
+  const fitStatusBar = () => document.documentElement.style.setProperty("--status-h", statusBar.offsetHeight + "px");
+  if (window.ResizeObserver) new ResizeObserver(fitStatusBar).observe(statusBar);
+  fitStatusBar();
+
+  function renderStatus(results, decided) {
+    const seats = countSeats();
+    const clash = results.filter(r => r.status === "clash").length;
+    const parts = [
+      `<strong>第${progress.round}回</strong>`,
+      `提出 ${results.length}人`,
+      `決定済み ${progress.confirmed.length}／${seats}席`,
+    ];
+    if (decided.length) parts.push(`今回決定 ${decided.length}人`);
+    parts.push(clash ? `<span class="status clash">かぶり ${clash}人</span>` : "かぶり 0人");
+    document.getElementById("statusNow").innerHTML = parts.join('<span class="sep">・</span>');
+  }
+
   // ---- 1. 配置 ----
   function renderEditor() {
     const locked = progress.confirmed.length > 0;
     document.getElementById("layoutLocked").hidden = !locked;
+    document.getElementById("layoutNote").textContent =
+      `（${layout.rows}×${layout.cols}・${countSeats()}席${locked ? "・変更できません" : ""}）`;
+    // 決定済みの席ができたら、変えられない配置のカードはたたむ
+    if (!layoutTouched) stepLayout.open = !locked;
     rowsInput.disabled = colsInput.disabled = locked;
     document.getElementById("resetLayout").disabled = locked;
 
@@ -827,6 +879,7 @@
   function startMove(c) {
     moving = c;
     render();
+    openStep(document.getElementById("moveBanner"));
     document.getElementById("moveBanner").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -971,6 +1024,7 @@
       tr.querySelector(".remove").addEventListener("click", () => unassign(c));
       cbody.appendChild(tr);
     }
+    renderStatus(results, decided);
     renderUndo();
   }
 
@@ -1003,7 +1057,8 @@
     resetLottery();
     changed();
     showMessage(`第${progress.round}回の調査を始めました。「2. 生徒用リンクを配る」のリンクを、席が決まっていない人に配ってください。`, "ok");
-    document.getElementById("roundTitle").scrollIntoView({ behavior: "smooth", block: "center" });
+    openStep(document.getElementById("roundTitle"));
+    document.getElementById("stepLink").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   document.getElementById("restart").addEventListener("click", () => {

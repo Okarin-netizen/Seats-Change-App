@@ -10,19 +10,21 @@
 <main>
   <h1>席替えアンケート <span class="round-label" id="roundLabel"></span></h1>
 
-  <section class="card">
+  <section class="card" id="infoCard">
     <h2>1. あなたの情報</h2>
     <div class="form-row">
       <label>出席番号
-        <input type="number" id="number" min="1" max="99" required>
+        <input type="number" id="number" min="1" max="99" required aria-describedby="numberError">
+        <span class="field-error" id="numberError" hidden></span>
       </label>
       <label>名前
-        <input type="text" id="name" placeholder="例：山田 太郎" maxlength="50" required>
+        <input type="text" id="name" placeholder="例：山田 太郎" maxlength="50" required aria-describedby="nameError">
+        <span class="field-error" id="nameError" hidden></span>
       </label>
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="seatCard">
     <h2>2. 希望の座席を選ぶ</h2>
     <p class="muted"><span id="howTo">座りたい席を1つクリックしてください。別の席をクリックすると選び直せます。</span><span id="takenNote"></span></p>
     <p class="message" id="limitNote" hidden></p>
@@ -36,21 +38,38 @@
     <div class="grid-wrap">
       <div class="seat-grid" id="grid"></div>
     </div>
-    <p class="choice" id="choice"></p>
+    <p class="field-error" id="seatError" hidden></p>
+    <p class="muted mt" id="submitNote">「提出ファイルを保存」を押すと JSON ファイルがダウンロードされます。そのファイルを先生の指示どおりに提出してください。</p>
   </section>
 
-  <section class="card">
-    <h2>3. 提出する</h2>
-    <p class="muted" id="submitNote">「提出ファイルを保存」を押すと JSON ファイルがダウンロードされます。そのファイルを先生の指示どおりに提出してください。</p>
-    <button type="button" class="primary" id="submit">提出ファイルを保存</button>
-    <button type="button" id="download" hidden>提出ファイルを保存する</button>
-    <div class="message" id="message"></div>
+  <section class="card done" id="done" hidden>
+    <div class="done-mark" id="doneMark" aria-hidden="true">✓</div>
+    <h2 class="done-title" id="doneTitle">提出しました</h2>
+    <p class="done-lead" id="doneLead"></p>
+    <dl class="done-list">
+      <dt>出席番号・名前</dt><dd id="doneWho"></dd>
+      <dt id="doneSeatLabel">希望の席</dt><dd id="doneSeat"></dd>
+      <dt id="doneSeat2Label" hidden>第2希望</dt><dd id="doneSeat2" hidden></dd>
+      <dt id="doneTimeLabel">提出した時刻</dt><dd id="doneTime"></dd>
+    </dl>
+    <button type="button" id="redo">選び直す</button>
   </section>
 
-  <details class="card">
+  <details class="card" id="aboutCard">
     <summary>座席の配置について（先生向け）</summary>
     <p class="muted">座席の配置は、教員用ページの「座席の配置」で作った生徒用リンクから開くと反映されます。リンクなしで開いたときは 6列 × 6人 です。</p>
   </details>
+
+  <div class="submit-bar" id="submitBar">
+    <div class="submit-bar-inner">
+      <div class="choice" id="choice" aria-live="polite"></div>
+      <div class="submit-actions">
+        <button type="button" class="primary" id="submit">提出ファイルを保存</button>
+        <button type="button" id="download" hidden>ファイルで保存する</button>
+      </div>
+    </div>
+    <div class="message" id="message" role="status"></div>
+  </div>
 </main>
 
 <script src="common.js"></script>
@@ -65,6 +84,10 @@
   const choiceEl = document.getElementById("choice");
   const messageEl = document.getElementById("message");
   const numberInput = document.getElementById("number");
+  const nameInput = document.getElementById("name");
+  const doneEl = document.getElementById("done");
+  const formParts = ["infoCard", "seatCard", "aboutCard", "submitBar"].map(id => document.getElementById(id));
+  let sending = false;
   let choice = null;  // 第1希望 {row, col}
   let choice2 = null; // 第2希望 {row, col}（second=1 のときだけ）
 
@@ -164,24 +187,46 @@
         grid.appendChild(btn);
       }
     }
-    const text = s => s ? SeatApp.seatLabel(layout, s.row, s.col) : '<span class="muted">未選択</span>';
-    choiceEl.innerHTML = `<span class="badge r1">${second ? "第1希望" : "希望"}</span>${text(choice)}` +
-      (second ? `<br><span class="badge r2">第2希望</span>${text(choice2)}` : "");
+    // 画面の下のバー：今の選択と「提出する」
+    if (!choice) {
+      choiceEl.innerHTML = `<span class="choice-empty">${second ? "第1希望の席を選んでください" : "席を選んでください"}</span>`;
+    } else {
+      const text = s => s ? SeatApp.seatLabel(layout, s.row, s.col) : '<span class="muted">未選択</span>';
+      choiceEl.innerHTML = `<span class="choice-item"><span class="badge r1">${second ? "第1希望" : "希望"}</span>${text(choice)}</span>` +
+        (second ? `<span class="choice-item"><span class="badge r2">第2希望</span>${text(choice2)}</span>` : "");
+      setFieldError(document.getElementById("seatError"), "");
+    }
+    submitBtn.disabled = sending || !choice;
+  }
+
+  // 入力もれは、その欄のすぐ下に出して、その欄まで画面を動かす
+  function setFieldError(errEl, text) {
+    errEl.textContent = text;
+    errEl.hidden = !text;
+    const input = document.querySelector(`[aria-describedby="${errEl.id}"]`);
+    if (input) input.setAttribute("aria-invalid", text ? "true" : "false");
+  }
+  function showFieldError(errEl, text, target) {
+    setFieldError(errEl, text);
+    showMessage("");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (target.focus) target.focus({ preventScroll: true });
   }
 
   function buildData() {
     const number = Number(numberInput.value);
-    const name = document.getElementById("name").value.trim();
+    const name = nameInput.value.trim();
     if (!Number.isInteger(number) || number < 1) {
-      showMessage("出席番号を入力してください。", "error");
+      showFieldError(document.getElementById("numberError"), "出席番号を入力してください。", numberInput);
       return null;
     }
     if (!name) {
-      showMessage("名前を入力してください。", "error");
+      showFieldError(document.getElementById("nameError"), "名前を入力してください。", nameInput);
       return null;
     }
     if (!choice) {
-      showMessage(second ? "第1希望の席を選んでください。" : "希望の席を1つ選んでください。", "error");
+      showFieldError(document.getElementById("seatError"),
+        second ? "第1希望の席を選んでください。" : "希望の席を1つ選んでください。", grid);
       return null;
     }
 
@@ -206,8 +251,41 @@
     // 日本語のファイル名は環境によって無視されるため、回と出席番号だけにする
     const filename = `seat_r${round}_${String(data.number).padStart(2, "0")}.json`;
     SeatApp.downloadBlob(blob, filename);
-    showMessage(`「${filename}」を保存しました。このファイルを先生に提出してください。`, "ok");
+    showDone(data, filename);
   }
+
+  // 提出できたら、入力のカードをたたんで「提出しました」のカードだけにする。
+  // filename があるときはファイル保存（まだ先生に渡していない）
+  function showDone(data, filename) {
+    const saved = !!filename;
+    doneEl.classList.toggle("saved", saved);
+    document.getElementById("doneMark").textContent = saved ? "!" : "✓";
+    document.getElementById("doneTitle").textContent = saved ? "ファイルを保存しました" : "提出しました";
+    document.getElementById("doneLead").textContent = saved
+      ? `まだ提出は終わっていません。保存したファイル「${filename}」を先生に渡してください。`
+      : "先生に届きました。選び直したいときは「選び直す」を押して、もう一度提出してください（最後に出したものが使われます）。";
+    document.getElementById("doneWho").textContent = `${data.number}番 ${data.name}`;
+    document.getElementById("doneSeatLabel").textContent = second ? "第1希望" : "希望の席";
+    document.getElementById("doneSeat").textContent = SeatApp.seatLabel(layout, data.choice.row, data.choice.col);
+    const has2 = second && !!data.choice2;
+    document.getElementById("doneSeat2Label").hidden = document.getElementById("doneSeat2").hidden = !has2;
+    document.getElementById("doneSeat2").textContent = has2 ? SeatApp.seatLabel(layout, data.choice2.row, data.choice2.col) : "";
+    document.getElementById("doneTimeLabel").textContent = saved ? "保存した時刻" : "提出した時刻";
+    document.getElementById("doneTime").textContent = new Date(data.submittedAt)
+      .toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    for (const el of formParts) el.hidden = true;
+    doneEl.hidden = false;
+    showMessage("");
+    window.scrollTo({ top: 0 });
+  }
+
+  document.getElementById("redo").addEventListener("click", () => {
+    doneEl.hidden = true;
+    for (const el of formParts) el.hidden = false;
+    downloadBtn.hidden = true;
+    render();
+    document.getElementById("seatCard").scrollIntoView({ block: "start" });
+  });
 
   submitBtn.addEventListener("click", async () => {
     const data = buildData();
@@ -216,18 +294,19 @@
       download(data);
       return;
     }
+    sending = true;
     submitBtn.disabled = true;
     downloadBtn.hidden = true;
     showMessage("送信中です…");
     try {
       await SeatApp.postToApi(api, data);
-      showMessage(`提出しました（${SeatApp.seatLabel(layout, data.choice.row, data.choice.col)}` +
-        (data.choice2 ? `、第2希望 ${SeatApp.seatLabel(layout, data.choice2.row, data.choice2.col)}` : "") + "）。", "ok");
+      showDone(data);
     } catch (e) {
-      showMessage("送信できませんでした。少し待ってからもう一度押すか、下のボタンでファイルを保存して先生に渡してください。", "error");
+      showMessage("送信できませんでした。少し待ってからもう一度押すか、「ファイルで保存する」を押して、保存したファイルを先生に渡してください。", "error");
       downloadBtn.hidden = false;
     } finally {
-      submitBtn.disabled = false;
+      sending = false;
+      submitBtn.disabled = !choice;
     }
   });
 
@@ -236,7 +315,11 @@
     if (data) download(data);
   });
 
-  numberInput.addEventListener("input", () => { if (prev.size) render(); });
+  numberInput.addEventListener("input", () => {
+    setFieldError(document.getElementById("numberError"), "");
+    if (prev.size) render();
+  });
+  nameInput.addEventListener("input", () => setFieldError(document.getElementById("nameError"), ""));
 
   render();
 })();
