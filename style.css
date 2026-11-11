@@ -311,7 +311,7 @@ body.presenting { overflow: hidden; }
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   body { background: #fff; }
-  main, .undo-bar, .present { display: none !important; }
+  main, .undo-bar, .present, .status-bar { display: none !important; }
   .print-area { display: block; text-align: center; }
   .print-area h1 { margin: 0 0 4px; }
 }
@@ -356,3 +356,39 @@ input[aria-invalid="true"] { border-color: var(--r1); }
 }
 .done-list dt { color: var(--muted); }
 .done-list dd { margin: 0; font-weight: bold; }
+
+/* 教員用：上に固定する「今の状況」 */
+html { scroll-padding-top: calc(var(--status-h, 0px) + 8px); }
+.status-bar {
+  position: sticky; top: 0; z-index: 15;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.status-bar-inner {
+  max-width: 960px; margin: 0 auto; padding: 8px 16px;
+  display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; justify-content: space-between;
+}
+.status-now { font-size: 0.95rem; }
+.status-now .sep { color: var(--muted); margin: 0 2px; }
+.status-links { display: flex; flex-wrap: wrap; gap: 4px; }
+.status-links a {
+  font-size: 0.85rem; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--accent); text-decoration: none; background: #fff;
+}
+.status-links a:hover { border-color: var(--accent); background: #eff6ff; }
+
+/* 教員用：たためる手順のカード */
+details.step > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: baseline; gap: 8px;
+}
+details.step > summary::-webkit-details-marker { display: none; }
+details.step > summary::before {
+  content: "▶"; color: var(--text); font-size: 0.7rem;
+  display: inline-block; transition: transform 0.15s;
+}
+details.step[open] > summary::before { transform: rotate(90deg); }
+details.step > summary h2 { margin: 0; }
+details.step[open] > summary { margin-bottom: 12px; }
+.step-note { font-weight: normal; }
