@@ -14,7 +14,7 @@
     <h2>1. あなたの情報</h2>
     <div class="form-row">
       <label>出席番号
-        <input type="number" id="number" min="1" max="99" required aria-describedby="numberError">
+        <input type="number" id="number" min="1" max="99" inputmode="numeric" required aria-describedby="numberError">
         <span class="field-error" id="numberError" hidden></span>
       </label>
       <label>名前
@@ -27,7 +27,7 @@
   <section class="card" id="seatCard">
     <h2>2. 希望の座席を選ぶ</h2>
     <p class="muted"><span id="howTo">座りたい席を1つクリックしてください。別の席をクリックすると選び直せます。</span><span id="takenNote"></span></p>
-    <p class="message" id="limitNote" hidden></p>
+    <p class="message" id="limitNote" role="status" hidden></p>
     <div class="form-row mb" id="rankSwitch" hidden>
       <span>いま選んでいるのは：</span>
       <label class="check"><input type="radio" name="rank" value="1" checked> 第1希望</label>
@@ -36,7 +36,7 @@
     <p class="legend" id="hotLegend" hidden><span class="badge hot-badge">人気</span>前回、希望がかぶった席です。ほかの席も考えてみてください。</p>
     <div class="front">教卓（前）</div>
     <div class="grid-wrap">
-      <div class="seat-grid" id="grid"></div>
+      <div class="seat-grid student" id="grid" role="group" aria-label="座席表"></div>
     </div>
     <p class="field-error" id="seatError" hidden></p>
     <p class="muted mt" id="submitNote">「提出ファイルを保存」を押すと JSON ファイルがダウンロードされます。そのファイルを先生の指示どおりに提出してください。</p>
@@ -55,7 +55,7 @@
     <button type="button" id="redo">選び直す</button>
   </section>
 
-  <details class="card" id="aboutCard">
+  <details class="card" id="aboutCard" hidden>
     <summary>座席の配置について（先生向け）</summary>
     <p class="muted">座席の配置は、教員用ページの「座席の配置」で作った生徒用リンクから開くと反映されます。リンクなしで開いたときは 6列 × 6人 です。</p>
   </details>
@@ -75,7 +75,8 @@
 <script src="common.js"></script>
 <script>
 (() => {
-  const layout = SeatApp.layoutFromUrl() || SeatApp.makeLayout();
+  const urlLayout = SeatApp.layoutFromUrl();
+  const layout = urlLayout || SeatApp.makeLayout();
   const { round, taken, hot, second, prev, maxRow, number: presetNumber, api } = SeatApp.surveyFromUrl();
   const { rows, cols } = layout;
   const submitBtn = document.getElementById("submit");
@@ -86,7 +87,10 @@
   const numberInput = document.getElementById("number");
   const nameInput = document.getElementById("name");
   const doneEl = document.getElementById("done");
-  const formParts = ["infoCard", "seatCard", "aboutCard", "submitBar"].map(id => document.getElementById(id));
+  // 「座席の配置について（先生向け）」は、先生のリンクなしで開いたときだけ出す
+  const formParts = ["infoCard", "seatCard", "submitBar"].concat(urlLayout ? [] : ["aboutCard"])
+    .map(id => document.getElementById(id));
+  if (!urlLayout) document.getElementById("aboutCard").hidden = false;
   let sending = false;
   let choice = null;  // 第1希望 {row, col}
   let choice2 = null; // 第2希望 {row, col}（second=1 のときだけ）
@@ -140,9 +144,18 @@
     if (choice && blockReason(choice.row, choice.col)) choice = null;
     if (choice2 && blockReason(choice2.row, choice2.col)) choice2 = null;
 
-    grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    // 画面の幅に合わせて席の大きさを変える（48〜96px）。縦に全部通路の列は細いまま
+    const aisleCol = c => { for (let r = 1; r <= rows; r++) if (SeatApp.isSeat(layout, r, c)) return false; return true; };
+    const tracks = [];
+    for (let c = 1; c <= cols; c++) tracks.push(aisleCol(c) ? "28px" : "minmax(48px, 96px)");
+    grid.style.gridTemplateColumns = `auto ${tracks.join(" ")}`;
+    const focusedKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.key : "";
     grid.innerHTML = "";
     for (let r = 1; r <= rows; r++) {
+      const head = document.createElement("div");
+      head.className = "row-head";
+      head.textContent = `${r}列目`;
+      grid.appendChild(head);
       for (let c = 1; c <= cols; c++) {
         if (!SeatApp.isSeat(layout, r, c)) {
           const gap = document.createElement("div");
@@ -153,9 +166,15 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "seat";
+        btn.dataset.key = SeatApp.key(r, c);
         btn.title = SeatApp.seatLabel(layout, r, c);
-        const pos = `<span class="pos">${SeatApp.seatShortLabel(layout, r, c)}</span>`;
+        // 席の中は左からの番号だけ（列は左の見出しでわかる）
+        const pos = `<span class="pos">${SeatApp.seatIndexInRow(layout, r, c)}</span>`;
         const blocked = blockReason(r, c);
+        const state = blocked || (same(choice, r, c) ? (second ? "第1希望" : "希望") : same(choice2, r, c) ? "第2希望"
+          : hot.has(SeatApp.key(r, c)) ? "人気の席" : "");
+        btn.setAttribute("aria-label", SeatApp.seatLabel(layout, r, c) + (state ? `、${state}` : ""));
+        btn.setAttribute("aria-pressed", String(!!(same(choice, r, c) || same(choice2, r, c))));
         if (blocked) {
           btn.classList.add("taken");
           btn.disabled = true;
@@ -186,6 +205,11 @@
         });
         grid.appendChild(btn);
       }
+    }
+    // キーボードで選んだときは、選び直したあとも同じ席にフォーカスを残す
+    if (focusedKey) {
+      const again = grid.querySelector(`[data-key="${focusedKey}"]`);
+      if (again && !again.disabled) again.focus();
     }
     // 画面の下のバー：今の選択と「提出する」
     if (!choice) {

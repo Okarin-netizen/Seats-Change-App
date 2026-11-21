@@ -1,15 +1,57 @@
+/* ==========================================================
+   色・余白（ここだけ変えれば全体に効く）
+   ========================================================== */
 :root {
+  /* 地の色・文字 */
   --bg: #f6f7f9;
   --card: #ffffff;
   --text: #1f2328;
   --muted: #656d76;
   --border: #d0d7de;
+  --surface-muted: #f3f4f6;   /* 表の見出し・通路の編集マス */
+  --surface-subtle: #fafbfc;  /* ファイルを置く枠 */
+
+  /* 操作の色 */
   --accent: #2563eb;
-  --r1: #e11d48;
-  --r2: #f59e0b;
-  --r3: #10b981;
+  --accent-soft: #eff6ff;
+  --accent-line: #bfdbfe;
+
+  /* 意味の色（白い文字をのせても読みやすい濃さにしている） */
+  --danger: #e11d48;          /* かぶり・エラー・第1希望 */
+  --warn: #b45309;            /* 第2希望・人気・注意 */
+  --ok: #047857;              /* 決定・提出できた */
+  --ok-soft: #ecfdf5;
+  --assigned: #4f46e5;        /* 先生が配置 */
+  --assigned-soft: #eef2ff;
+  --taken: #6b7280;           /* 決定済み（文字・バッジ） */
+  --taken-soft: #e5e7eb;      /* 決定済み（席の地） */
+  --taken-line: #d1d5db;
+  --confirmed-line: #9ca3af;
+
+  /* 希望の順位（生徒用の席とバッジ） */
+  --r1: var(--danger);
+  --r2: var(--warn);
+  --r3: var(--ok);
+
+  /* 発表モードで今の人を目立たせる（黒い文字をのせる） */
+  --highlight: #f59e0b;
+  --highlight-soft: #fef3c7;
+
+  --print-line: #555;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.06);
+
+  /* 余白と角の丸み */
+  --space: 16px;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 10px;
+  --focus: 3px solid var(--accent);
 }
 
+/* ==========================================================
+   共通
+   ========================================================== */
 * { box-sizing: border-box; }
 
 /* hidden 属性を .form-row などの display 指定より優先する */
@@ -26,23 +68,25 @@ body {
 main {
   max-width: 960px;
   margin: 0 auto;
-  padding: 16px;
+  padding: var(--space);
 }
 
-h1 { font-size: 1.5rem; margin: 8px 0 16px; }
+h1 { font-size: 1.5rem; margin: 8px 0 var(--space); }
 h2 { font-size: 1.15rem; margin: 0 0 12px; }
+h3.sub { font-size: 1rem; margin: var(--space) 0 4px; }
 
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 16px;
+  border-radius: var(--radius-lg);
+  padding: var(--space);
+  margin-bottom: var(--space);
 }
 
 .muted { color: var(--muted); font-size: 0.9rem; }
 .mt { margin-top: 12px; }
 .mb { margin-bottom: 12px; }
+.round-label { font-size: 1rem; color: var(--muted); }
 
 .form-row {
   display: flex;
@@ -50,25 +94,30 @@ h2 { font-size: 1.15rem; margin: 0 0 12px; }
   gap: 12px 20px;
   align-items: flex-end;
 }
+.form-row .push-right { margin-left: auto; }
 
 label { display: flex; flex-direction: column; font-size: 0.9rem; gap: 4px; }
 label.wide { flex: 1 1 320px; }
+label.check { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 8px; }
 
-input[type="text"], input[type="number"] {
+input[type="text"], input[type="number"], textarea, select {
   font-size: 1rem;
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  min-width: 0;
+  border-radius: var(--radius-sm);
 }
+input[type="text"], input[type="number"] { min-width: 0; }
 input[type="number"] { width: 5em; }
+textarea { width: 100%; font-family: inherit; }
+input[aria-invalid="true"] { border-color: var(--danger); }
 
 button {
   font-size: 1rem;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
+  color: var(--text);
   cursor: pointer;
 }
 button.primary {
@@ -77,53 +126,25 @@ button.primary {
   color: #fff;
   font-weight: bold;
 }
+/* 取り返しのつかない操作 */
+button.danger { color: var(--danger); border-color: var(--danger); }
+button.danger:hover { background: #fff1f2; }
+button.danger-fill { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: bold; }
+button.small { font-size: 0.85rem; padding: 2px 8px; margin-right: 4px; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.front {
-  text-align: center;
-  background: #e5e7eb;
-  border-radius: 6px;
-  padding: 4px;
-  margin: 0 auto 12px;
-  max-width: 240px;
-  font-size: 0.9rem;
+/* キーボードで選んだときの枠 */
+button:focus-visible, a:focus-visible, summary:focus-visible, .seat:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
 }
 
-.grid-wrap { overflow-x: auto; }
-
-.seat-grid {
-  display: grid;
-  gap: 8px;
-  margin: 0 auto;
-  width: max-content;
-}
-
-.seat {
-  width: 72px;
-  height: 56px;
-  border: 2px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-  font-size: 0.75rem;
-  color: var(--muted);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-}
-button.seat:hover { border-color: var(--accent); }
-
-.seat .rank {
-  font-size: 0.95rem;
-  font-weight: bold;
-  color: #fff;
-}
-.seat.rank1 { background: var(--r1); border-color: var(--r1); }
-.seat.rank1 .pos, .seat.rank2 .pos, .seat.rank3 .pos { color: #fff; }
-
-.choices { list-style: none; padding: 0; margin: 12px 0; }
-.choices li { padding: 2px 0; }
+.message { margin-top: 8px; font-weight: bold; }
+.message.error { color: var(--danger); }
+.message.ok { color: var(--ok); }
+.field-error { color: var(--danger); font-size: 0.85rem; font-weight: bold; margin: 4px 0 0; }
+.warn { color: var(--warn); font-size: 0.8rem; font-weight: bold; }
 
 .badge {
   display: inline-block;
@@ -136,249 +157,173 @@ button.seat:hover { border-color: var(--accent); }
   margin-right: 6px;
 }
 .badge.r1 { background: var(--r1); }
-
-.message { margin-top: 8px; font-weight: bold; }
-.message.error { color: var(--r1); }
-.message.ok { color: #047857; }
-
-/* 教員用 */
-.dropzone {
-  border: 2px dashed var(--border);
-  border-radius: 10px;
-  padding: 24px;
-  text-align: center;
-  background: #fafbfc;
-}
-.dropzone.over { border-color: var(--accent); background: #eff6ff; }
-
-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 0.9rem;
-}
-th, td {
-  border: 1px solid var(--border);
-  padding: 6px 8px;
-  text-align: left;
-}
-th { background: #f3f4f6; }
-.table-wrap { overflow-x: auto; }
-
-.seat-grid.teacher .seat {
-  width: 120px;
-  height: auto;
-  min-height: 80px;
-  justify-content: flex-start;
-  align-items: stretch;
-  text-align: left;
-  color: var(--text);
-  cursor: default;
-}
-.seat-grid.teacher .pos {
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-.seat-grid.teacher .names { font-size: 0.75rem; line-height: 1.4; }
-.seat-grid.teacher .names span { display: block; }
-.seat-grid.teacher .names .n1 { color: var(--r1); font-weight: bold; }
-.seat-grid.teacher .names .n2 { color: #b45309; }
-.seat-grid.teacher .names .n3 { color: #047857; }
-.seat-grid.teacher .seat.hot { border-color: var(--r1); }
-
+.badge.r2 { background: var(--r2); }
+.badge.hot-badge { background: var(--warn); }
+.badge.teacher-badge { background: var(--assigned); }
+.badge.confirmed-badge { background: var(--taken); }
+.badge.ok-badge { background: var(--ok); }
 .legend { font-size: 0.85rem; margin-bottom: 8px; }
 
-.links a {
-  display: block;
-  padding: 12px 16px;
-  margin-bottom: 8px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  text-decoration: none;
-  color: var(--accent);
-  font-weight: bold;
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+th { background: var(--surface-muted); }
+.table-wrap { overflow-x: auto; }
+td.actions { white-space: nowrap; }
+
+/* 座席表（共通） */
+.front {
+  text-align: center;
+  background: var(--taken-soft);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  margin: 0 auto 12px;
+  max-width: 240px;
+  font-size: 0.9rem;
 }
+.front.mt { margin-top: 12px; }
+.grid-wrap { overflow-x: auto; }
+.seat-grid {
+  display: grid;
+  gap: 8px;
+  margin: 0 auto;
+  width: max-content;
+}
+.seat {
+  width: 72px;
+  height: 56px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+button.seat:hover { border-color: var(--accent); }
+.seat .rank { font-size: 0.95rem; font-weight: bold; color: #fff; }
 
 /* 通路・空きのマス */
-.seat.aisle {
-  border: 2px dashed transparent;
-  background: transparent;
-}
+.seat.aisle { border: 2px dashed transparent; background: transparent; }
 /* 集計・生徒用では通路を細くして表を横に広げすぎない */
 .seat.aisle:not(.editable),
 .seat-grid.teacher .seat.aisle { width: 28px; min-width: 0; }
 button.seat.aisle.editable {
   border-color: var(--border);
   color: var(--muted);
-  background: #f3f4f6;
+  background: var(--surface-muted);
 }
 
-h3.sub { font-size: 1rem; margin: 16px 0 4px; }
-.link-box { flex: 1 1 320px; font-size: 0.85rem; }
-
-/* 決定済みの席 */
-.seat.taken {
-  background: #e5e7eb;
-  border-color: #d1d5db;
-  cursor: not-allowed;
+/* 入口 */
+.entry-card {
+  display: block;
+  padding: 20px;
+  margin-bottom: var(--space);
+  background: var(--card);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text);
 }
-.seat.taken .rank { color: #6b7280; font-size: 0.8rem; }
-.round-label { font-size: 1rem; color: var(--muted); }
+.entry-card:hover { background: var(--accent-soft); }
+.entry-label { display: block; font-size: 0.85rem; color: var(--muted); font-weight: bold; }
+.entry-title { display: block; font-size: 1.3rem; font-weight: bold; color: var(--accent); margin: 2px 0 6px; }
+.entry-text { display: block; }
+.entry-student p { margin: 0 0 8px; }
+
+/* ==========================================================
+   生徒用
+   ========================================================== */
+
+/* 席の大きさは画面の幅に合わせる（列の幅は student.html で 48〜96px に指定） */
+.seat-grid.student { width: 100%; justify-content: center; align-items: center; }
+.seat-grid.student .seat { width: 100%; height: auto; aspect-ratio: 4 / 3; font-size: 0.85rem; }
+.seat-grid.student .seat.aisle { width: 100%; }
+.seat-grid.student .pos { font-size: 1rem; }
+.seat-grid.student .seat .rank { font-size: clamp(0.7rem, 1.6vw, 0.95rem); white-space: nowrap; }
+.seat-grid.student .seat { overflow: hidden; }
+.row-head { font-size: 0.8rem; color: var(--muted); white-space: nowrap; padding-right: 4px; text-align: right; }
+
+.seat.rank1 { background: var(--r1); border-color: var(--r1); }
+.seat.rank2 { background: var(--r2); border-color: var(--r2); }
+.seat.rank1 .pos, .seat.rank2 .pos, .seat.rank3 .pos { color: #fff; }
+button.seat.hot { border-color: var(--warn); border-style: dashed; }
+.seat .hot-mark { font-size: 0.7rem; font-weight: bold; color: var(--warn); }
+
+/* 決定済み・選べない席 */
+.seat.taken { background: var(--taken-soft); border-color: var(--taken-line); cursor: not-allowed; }
+.seat.taken .rank { color: var(--taken); font-size: 0.8rem; }
+
+.choices { list-style: none; padding: 0; margin: 12px 0; }
+.choices li { padding: 2px 0; }
 .choice { margin: 12px 0 0; }
 
-/* 教員用：決定・かぶりの表示 */
-.seat-grid.teacher .seat.confirmed { background: #e5e7eb; border-color: #9ca3af; }
-.seat-grid.teacher .seat.ok { border-color: var(--r3); background: #ecfdf5; }
-.seat-grid.teacher .names .n-ok { color: #047857; font-weight: bold; }
-.badge.confirmed-badge { background: #6b7280; }
-.badge.ok-badge { background: var(--r3); }
-.status { font-weight: bold; }
-.status.ok { color: #047857; }
-.status.clash { color: var(--r1); }
-.status.invalid { color: var(--muted); }
-.seat-grid.teacher .names .muted { font-size: inherit; }
-
-/* 先生が配置した席 */
-.seat-grid.teacher .seat.assigned { background: #eef2ff; border-color: #6366f1; }
-.badge.teacher-badge { background: #6366f1; }
-.seat-grid.teacher .seat.clickable { cursor: pointer; }
-.seat-grid.teacher .seat.clickable:hover { border-color: var(--accent); }
-label.check { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 8px; }
-
-/* 決定済みの席の移動 */
-.move-banner {
-  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
-  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
-  padding: 8px 12px; margin-bottom: 12px; font-weight: bold;
-}
-.seat-grid.teacher .seat.moving { outline: 3px solid var(--accent); }
-td.actions { white-space: nowrap; }
-button.small { font-size: 0.85rem; padding: 2px 8px; margin-right: 4px; }
-
-/* 第2希望・人気の席（生徒用） */
-.seat.rank2 { background: var(--r2); border-color: var(--r2); }
-.badge.r2 { background: var(--r2); }
-button.seat.hot { border-color: var(--r2); border-style: dashed; }
-.seat .hot-mark { font-size: 0.7rem; font-weight: bold; color: #b45309; }
-.badge.hot-badge { background: #b45309; }
-
-/* 名簿・条件・結果 */
-textarea {
-  width: 100%;
-  font-size: 1rem;
-  font-family: inherit;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-select { font-size: 1rem; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; }
-.warn { color: #b45309; font-size: 0.8rem; font-weight: bold; }
-.status.lost { color: var(--muted); }
-.remain { font-weight: bold; margin: 0 0 4px; }
-
-/* 元に戻す */
-.undo-bar {
-  position: fixed; right: 16px; bottom: 16px; z-index: 10;
-  display: flex; gap: 8px; align-items: center;
-  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
-  padding: 8px 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); font-size: 0.9rem;
-}
-
-/* 発表モード */
-.present {
-  position: fixed; inset: 0; z-index: 20; overflow: auto;
-  background: #fff; padding: 16px 24px;
-}
-body.presenting { overflow: hidden; }
-.present-head { display: flex; gap: 16px; align-items: center; justify-content: space-between; font-weight: bold; }
-.present-caption { text-align: center; font-size: 2rem; font-weight: bold; margin: 12px 0; min-height: 3rem; }
-.present-grid .seat, .print-grid .seat { color: var(--text); }
-.present-grid .seat { width: 110px; height: 80px; cursor: pointer; }
-.present-grid .seat.shown { background: #ecfdf5; border-color: var(--r3); }
-.present-grid .seat.current { background: #fef3c7; border-color: var(--r2); outline: 4px solid var(--r2); }
-.present-grid .p-name { font-size: 1.15rem; font-weight: bold; }
-.present-grid .p-num, .print-grid .p-num { font-size: 0.8rem; color: var(--muted); }
-.present-controls { justify-content: center; }
-.present-controls button { font-size: 1.2rem; padding: 10px 32px; }
-
-/* 印刷（座席表だけを A4 横 1 枚に） */
-.print-area { display: none; }
-.print-grid { gap: 4px; }
-.print-grid .seat { width: 21mm; height: 15mm; border-color: #555; border-radius: 4px; }
-.print-grid .seat.aisle { width: 6mm; border: none; }
-.print-grid .p-name { font-size: 10pt; font-weight: bold; text-align: center; line-height: 1.2; }
-@media print {
-  @page { size: A4 landscape; margin: 10mm; }
-  body { background: #fff; }
-  main, .undo-bar, .present, .status-bar { display: none !important; }
-  .print-area { display: block; text-align: center; }
-  .print-area h1 { margin: 0 0 4px; }
-}
-.front.mt { margin-top: 12px; }
-
-/* 生徒用：入力もれ（その欄のすぐ下に出す） */
-.field-error { color: var(--r1); font-size: 0.85rem; font-weight: bold; margin: 4px 0 0; }
-input[aria-invalid="true"] { border-color: var(--r1); }
-
-/* 生徒用：画面の下に固定する「今の選択」と「提出する」 */
+/* 画面の下に固定する「今の選択」と「提出する」 */
 .submit-bar {
   position: sticky; bottom: 0; z-index: 5;
-  margin: 0 -16px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  margin: 0 calc(-1 * var(--space));
+  padding: 12px var(--space) calc(12px + env(safe-area-inset-bottom));
   background: var(--card);
   border-top: 1px solid var(--border);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
 }
-.submit-bar-inner { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
-.submit-bar .choice { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.submit-bar-inner { display: flex; flex-wrap: wrap; gap: 8px var(--space); align-items: center; justify-content: space-between; }
+.submit-bar .choice { margin: 0; display: flex; flex-wrap: wrap; gap: 4px var(--space); }
 .submit-bar .choice-item { white-space: nowrap; }
 .submit-bar .choice-empty { color: var(--muted); font-weight: bold; }
 .submit-actions { display: flex; gap: 8px; margin-left: auto; }
 .submit-bar button.primary { font-size: 1.1rem; padding: 10px 28px; }
 .submit-bar .message:empty { display: none; }
 
-/* 生徒用：提出しました */
-.done { text-align: center; padding: 32px 16px; border: 2px solid #047857; }
+/* 提出しました */
+.done { text-align: center; padding: 32px var(--space); border: 2px solid var(--ok); }
 .done-mark {
   width: 72px; height: 72px; margin: 0 auto 8px; border-radius: 50%;
-  background: #047857; color: #fff; font-size: 2.6rem; line-height: 72px; font-weight: bold;
+  background: var(--ok); color: #fff; font-size: 2.6rem; line-height: 72px; font-weight: bold;
 }
-.done-title { font-size: 1.6rem; margin: 0 0 8px; color: #047857; }
-.done-lead { margin: 0 auto 16px; max-width: 34em; }
-.done.saved { border-color: #b45309; }
-.done.saved .done-mark { background: #b45309; }
-.done.saved .done-title { color: #b45309; }
+.done-title { font-size: 1.6rem; margin: 0 0 8px; color: var(--ok); }
+.done-lead { margin: 0 auto var(--space); max-width: 34em; }
+.done.saved { border-color: var(--warn); }
+.done.saved .done-mark { background: var(--warn); }
+.done.saved .done-title { color: var(--warn); }
 .done.saved .done-lead { font-weight: bold; }
 .done-list {
-  display: grid; grid-template-columns: auto auto; gap: 6px 16px;
+  display: grid; grid-template-columns: auto auto; gap: 6px var(--space);
   justify-content: center; text-align: left; margin: 0 auto 20px; font-size: 1.05rem;
 }
 .done-list dt { color: var(--muted); }
 .done-list dd { margin: 0; font-weight: bold; }
 
-/* 教員用：上に固定する「今の状況」 */
+/* ==========================================================
+   教員用
+   ========================================================== */
+
+/* 上に固定する「今の状況」 */
 html { scroll-padding-top: calc(var(--status-h, 0px) + 8px); }
 .status-bar {
   position: sticky; top: 0; z-index: 15;
   background: var(--card);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-soft);
 }
 .status-bar-inner {
-  max-width: 960px; margin: 0 auto; padding: 8px 16px;
-  display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; justify-content: space-between;
+  max-width: 960px; margin: 0 auto; padding: 8px var(--space);
+  display: flex; flex-wrap: wrap; gap: 4px var(--space); align-items: center; justify-content: space-between;
 }
 .status-now { font-size: 0.95rem; }
 .status-now .sep { color: var(--muted); margin: 0 2px; }
 .status-links { display: flex; flex-wrap: wrap; gap: 4px; }
 .status-links a {
   font-size: 0.85rem; padding: 4px 10px; border-radius: 999px;
-  border: 1px solid var(--border); color: var(--accent); text-decoration: none; background: #fff;
+  border: 1px solid var(--border); color: var(--accent); text-decoration: none; background: var(--card);
 }
-.status-links a:hover { border-color: var(--accent); background: #eff6ff; }
+.status-links a:hover { border-color: var(--accent); background: var(--accent-soft); }
+.status { font-weight: bold; }
+.status.clash { color: var(--danger); }
 
-/* 教員用：たためる手順のカード */
+/* たためる手順のカード */
 details.step > summary {
   list-style: none; cursor: pointer;
   display: flex; align-items: baseline; gap: 8px;
@@ -392,3 +337,121 @@ details.step[open] > summary::before { transform: rotate(90deg); }
 details.step > summary h2 { margin: 0; }
 details.step[open] > summary { margin-bottom: 12px; }
 .step-note { font-weight: normal; }
+
+.link-box { flex: 1 1 320px; font-size: 0.85rem; }
+.remain { font-weight: bold; margin: 0 0 4px; }
+
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  text-align: center;
+  background: var(--surface-subtle);
+}
+.dropzone.over { border-color: var(--accent); background: var(--accent-soft); }
+
+/* 4. 結果：絞り込みとバッジ */
+.filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip { font-size: 0.9rem; padding: 4px 12px; border-radius: 999px; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+.chip-count { display: inline-block; min-width: 1.2em; font-weight: bold; }
+.badge.st-ok { background: var(--ok); }
+.badge.st-clash { background: var(--danger); }
+.badge.st-lost, .badge.st-invalid { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
+.badge[class*="st-"] { min-width: 0; margin-right: 0; font-size: 0.85rem; padding: 1px 8px; }
+
+/* 5. 座席表 */
+.seat-grid.teacher .seat {
+  width: 120px;
+  height: auto;
+  min-height: 80px;
+  justify-content: flex-start;
+  align-items: stretch;
+  text-align: left;
+  color: var(--text);
+  cursor: default;
+}
+.seat-grid.teacher .pos { text-align: center; color: var(--muted); font-size: 0.75rem; }
+.seat-grid.teacher .names { font-size: 0.75rem; line-height: 1.4; }
+.seat-grid.teacher .names span { display: block; }
+.seat-grid.teacher .names .muted { font-size: inherit; }
+.seat-grid.teacher .names .n1 { color: var(--danger); font-weight: bold; }
+.seat-grid.teacher .names .n2 { color: var(--warn); }
+.seat-grid.teacher .names .n3 { color: var(--ok); }
+.seat-grid.teacher .names .n-ok { color: var(--ok); font-weight: bold; }
+/* 色だけに頼らないよう、席に短い文字も入れる */
+.seat-grid.teacher .names .tag {
+  display: inline-block; font-size: 0.7rem; font-weight: bold; color: #fff;
+  border-radius: 3px; padding: 0 4px; margin-bottom: 2px;
+}
+.seat-grid.teacher .names .tag-ok { background: var(--ok); }
+.seat-grid.teacher .names .tag-clash { background: var(--danger); }
+.seat-grid.teacher .seat.hot { border-color: var(--danger); }
+.seat-grid.teacher .seat.confirmed { background: var(--taken-soft); border-color: var(--confirmed-line); }
+.seat-grid.teacher .seat.ok { border-color: var(--ok); background: var(--ok-soft); }
+.seat-grid.teacher .seat.assigned { background: var(--assigned-soft); border-color: var(--assigned); }
+.seat-grid.teacher .seat.clickable { cursor: pointer; }
+.seat-grid.teacher .seat.clickable:hover { border-color: var(--accent); }
+.seat-grid.teacher .seat.moving { outline: var(--focus); }
+.seat-grid.teacher .seat.flash { outline: 4px solid var(--accent); outline-offset: 2px; }
+
+/* 決定済みの席の移動 */
+.move-banner {
+  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
+  background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius);
+  padding: 8px 12px; margin-bottom: 12px; font-weight: bold;
+}
+
+/* 元に戻す */
+.undo-bar {
+  position: fixed; right: var(--space); bottom: var(--space); z-index: 10;
+  display: flex; gap: 8px; align-items: center;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 12px; box-shadow: var(--shadow); font-size: 0.9rem;
+}
+
+/* ページ内の入力窓 */
+.dlg {
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 20px; width: min(480px, calc(100vw - 32px));
+  box-shadow: var(--shadow); color: var(--text);
+}
+.dlg::backdrop { background: rgba(0, 0, 0, 0.35); }
+.dlg-text { white-space: pre-line; margin: 0 0 12px; }
+.dlg select { width: 100%; }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: var(--space); }
+
+/* ==========================================================
+   発表モード
+   ========================================================== */
+.present {
+  position: fixed; inset: 0; z-index: 20; overflow: auto;
+  background: var(--card); padding: var(--space) 24px;
+}
+body.presenting { overflow: hidden; }
+.present-head { display: flex; gap: var(--space); align-items: center; justify-content: space-between; font-weight: bold; }
+.present-caption { text-align: center; font-size: 2rem; font-weight: bold; margin: 12px 0; min-height: 3rem; }
+.present-grid .seat, .print-grid .seat { color: var(--text); }
+.present-grid .seat { width: 110px; height: 80px; cursor: pointer; }
+.present-grid .seat.shown { background: var(--ok-soft); border-color: var(--ok); }
+.present-grid .seat.current { background: var(--highlight-soft); border-color: var(--highlight); outline: 4px solid var(--highlight); }
+.present-grid .p-name { font-size: 1.15rem; font-weight: bold; }
+.present-grid .p-num, .print-grid .p-num { font-size: 0.8rem; color: var(--muted); }
+.present-controls { justify-content: center; }
+.present-controls button { font-size: 1.2rem; padding: 10px 32px; }
+
+/* ==========================================================
+   印刷（座席表だけを A4 横 1 枚に）
+   ========================================================== */
+.print-area { display: none; }
+.print-grid { gap: 4px; }
+.print-grid .seat { width: 21mm; height: 15mm; border-color: var(--print-line); border-radius: 4px; }
+.print-grid .seat.aisle { width: 6mm; border: none; }
+.print-grid .p-name { font-size: 10pt; font-weight: bold; text-align: center; line-height: 1.2; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff; }
+  main, .undo-bar, .present, .status-bar, .dlg { display: none !important; }
+  .print-area { display: block; text-align: center; }
+  .print-area h1 { margin: 0 0 4px; }
+}
